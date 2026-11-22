@@ -4,6 +4,10 @@
 # a-look = as a, plus the app log and the screen words before the retry; look = the app log only (control);
 # a-enter = as a-look, but the retry presses the password field then Enter (the first send's way);
 # a-look, a-enter and look also keep the Maestro step kinds and results (rehearsal/steps.js, no arguments) every 10 s;
+# gate-up = block at the login, restore after 90 s (head 2d: the net gate waits, then the first send reaches home);
+# gate-up-500 = as gate-up, restore after 500 s (near the 600 s gate end); post-in = no block before the login,
+# block once the 2nd inputText (password) of the login flow is COMPLETED, restore 40 s after the Enter (the retry way);
+# post-in retries by the masked text (tapOn text "•+" then Enter); post-in-left = same, but tapOn leftOf "パスワードを表示";
 # c-up = as a, plus the keyboard up on the password field before the resubmit; e = plant the practice values in out/.
 P="$1"; UDID="$2"; HOST="cognito-idp.${AUTH_REGION}.amazonaws.com"; BH=192.0.2.1; F="$PWD/out/fault.txt"
 mkdir -p "$PWD/out"; log() { echo "$(date -u +%H:%M:%S) fault=$FAULT $P $*" | tee -a "$F"; }
@@ -25,9 +29,20 @@ stepwatch() { ( D="$HOME/cm-maestro-raw/iphone"; O="$PWD/out/iphone/steps.txt"; 
     for c in "$D"/m-*.console; do [ -f "$c" ] || continue; b=$(basename "$c" .console); k="$PWD/out/iphone/.n-$b"
       node rehearsal/steps.js "$c" "$(cat "$k" 2>/dev/null || echo 0)" 2> "$k.new" | sed "s/^/$(date -u +%H:%M:%S) $b /" >> "$O"; mv "$k.new" "$k"; done
     sleep 10; t=$((t + 10)); done ) > /dev/null 2>&1 & log "step watch started (kinds and results only, every 10 s)"; }
+postin() { ( O="$PWD/out/iphone/steps.txt"; t=0; while [ $t -lt 1800 ]; do
+    n=$(grep -c " m-login[^ ]* [0-9]* inputText COMPLETED" "$O" 2>/dev/null || echo 0); [ "${n:-0}" -ge 2 ] && { block; exit 0; }
+    sleep 2; t=$((t + 2)); done; log "post-in: password input never seen, no block" ) & log "post-in watch started"; }
 case "$FAULT:$P" in
   a:pre-login|b:pre-login|c-up:pre-login) block ;;
   a-look:pre-login|a-enter:pre-login) mkdir -p out/iphone; stepwatch; applog; block ;;
+  gate-up:pre-login|gate-up-500:pre-login) mkdir -p out/iphone; stepwatch; applog; block
+    s=90; [ "$FAULT" = gate-up-500 ] && s=500; ( sleep $s; unblock ) > /dev/null 2>&1 & log "restore in $s s" ;;
+  post-in:pre-login|post-in-left:pre-login) mkdir -p out/iphone; stepwatch; applog; postin ;;
+  post-in:post-enter|post-in-left:post-enter) ( sleep 40; unblock ) > /dev/null 2>&1 & log "restore in 40 s" ;;
+  post-in:pre-retry) words; printf '%s
+' 'appId: dev.rehearsal.sim' '---' '- tapOn:' '    text: "•+"' '- pressKey: Enter' > .maestro/trial-retry.yaml; log "retry flow = masked text then Enter" ;;
+  post-in-left:pre-retry) words; printf '%s
+' 'appId: dev.rehearsal.sim' '---' '- tapOn:' '    leftOf: "パスワードを表示"' '- pressKey: Enter' > .maestro/trial-retry.yaml; log "retry flow = leftOf the eye button then Enter" ;;
   look:pre-login) mkdir -p out/iphone; stepwatch; applog ;;
   a:post-enter|a-look:post-enter|a-enter:post-enter|c-up:post-enter) ( sleep 40; unblock ) > /dev/null 2>&1 & log "restore in 40 s" ;;
   a-look:pre-retry) words ;;

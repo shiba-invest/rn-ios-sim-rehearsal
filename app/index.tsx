@@ -81,29 +81,30 @@ export default function Login() {
                 autoCorrect={false}
                 textContentType="username"
               />
-              <Text style={styles.label}>パスワード</Text>
-              <View style={styles.pwRow}>
-                <TextInput
-                  style={[styles.input, styles.flex]}
-                  value={pw}
-                  onChangeText={setPw}
-                  placeholder="パスワード"
-                  testID="loginPw"
-                  secureTextEntry={!show}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="ascii-capable"
-                  returnKeyType="go"
-                  onSubmitEditing={submit}
-                />
-                <Pressable
-                  style={styles.eye}
-                  accessibilityRole="button"
-                  accessibilityLabel={show ? 'パスワードを隠す' : 'パスワードを表示'}
-                  onPress={() => setShow((v) => !v)}
-                >
-                  <Text>{show ? '◉' : '◎'}</Text>
-                </Pressable>
+              <View style={styles.pwWrap}>
+                <Text style={styles.label}>パスワード</Text>
+                <View style={styles.pwRow}>
+                  <TextInput
+                    style={[styles.input, styles.pwInput]}
+                    value={show ? pw : '•'.repeat(pw.length)}
+                    onChangeText={(t) => setPw((p) => (show ? t : t.length > p.length ? p + t.slice(p.length) : p.slice(0, t.length)))}
+                    placeholder="パスワード"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="ascii-capable"
+                    returnKeyType="go"
+                    onFocus={() => console.log('[REHEARSAL] pw focus')}
+                    onSubmitEditing={() => { console.log('[REHEARSAL] pw submit-editing'); submit(); }}
+                  />
+                  <Pressable
+                    style={styles.eye}
+                    accessibilityRole="button"
+                    accessibilityLabel={show ? 'パスワードを隠す' : 'パスワードを表示'}
+                    onPress={() => setShow((v) => !v)}
+                  >
+                    <View style={show ? styles.eyeDotOn : styles.eyeDot} />
+                  </Pressable>
+                </View>
               </View>
               {err ? <Text style={styles.err}>⚠ {err}</Text> : null}
               <Pressable style={styles.primary} onPress={submit}>
@@ -130,8 +131,12 @@ const styles = StyleSheet.create({
   block: { gap: 12 },
   label: { fontSize: 14, color: '#555' },
   input: { borderWidth: 1, borderColor: '#999', borderRadius: 8, minHeight: 48, paddingHorizontal: 12, fontSize: 18 },
-  pwRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  eye: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  pwWrap: { width: '100%' },
+  pwRow: { position: 'relative' },
+  pwInput: { width: '100%', paddingRight: 54 },
+  eye: { position: 'absolute', right: 8, top: 3, width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  eyeDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#555' },
+  eyeDotOn: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#555' },
   err: { color: '#c0392b', fontSize: 15 },
   primary: { backgroundColor: '#2e7d32', borderRadius: 10, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: '#fff', fontSize: 18 },

@@ -1,6 +1,6 @@
 appId: dev.rehearsal.sim
 ---
 - tapOn:
-    id: "loginPw"
+    text: "•+"
 - waitForAnimationToEnd:
     timeout: 1500
