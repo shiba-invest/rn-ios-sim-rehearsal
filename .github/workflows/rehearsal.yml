@@ -20,28 +20,26 @@ concurrency:
   group: rehearsal
   cancel-in-progress: false
 
+# Step order and limits follow a mirrored stage-2 layout: Gate a, updates off, npm ci, prebuild, pods,
+# fixed-name build, Gate b, iPhone run, pass marker. Every step publishes out/ to upload/ only after the scrub.
 jobs:
   ios-sim:
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 42
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-      WANT_XCODE: "26.6"
-      WANT_IOS: "26.5"
-      WANT_DEVICE: iPhone 17 Pro
-      WANT_NODE: 24.17.0
-      WANT_MAESTRO: 2.12.1
-      AUTH_REGION: ap-northeast-1
-      # Made-up practice values (no account exists for them).
-      LOGIN_ID: "001"
-      LOGIN_PW: Rh-Practice-9x
-      PLANT_MARKER: REHEARSAL-PLANTED-7Q
-      FAULT: ${{ inputs.fault || 'none' }}
-      OUT: ${{ github.workspace }}/out
-      WITHHELD: ${{ github.workspace }}/withheld
-      LOG_CAP_BYTES: "52428800"
+      EXPO_NO_TELEMETRY: "1"
       MAESTRO_CLI_NO_ANALYTICS: "1"
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
+      MAESTRO_VERSION: "2.12.1"
+      CM_DEADLINE_SEC: ${{ inputs.fault == 'd-cap' && '700' || '1866' }}
+      CM_FILE_ENV: out/cm.env
+      AUTH_REGION: ap-northeast-1
+      # Made-up practice values (no account exists for them).
+      E2E_0003_LOGIN: "001"
+      E2E_0003_PASSWORD: Rh-Practice-9x
+      FAULT: ${{ inputs.fault || 'none' }}
+      FAULT_HOOK: ${{ inputs.fault && inputs.fault != 'none' && 'rehearsal/fault.sh' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,55 +49,117 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: CocoaPods 1.16.2
+        shell: bash
+        run: |
+          sudo gem install cocoapods -v 1.16.2 --no-document > /dev/null
+          P=$(command -v pod); mkdir -p "$HOME/pin-bin"
+          printf '#!/bin/bash\nexec %s _1.16.2_ "$@"\n' "$P" > "$HOME/pin-bin/pod"; chmod +x "$HOME/pin-bin/pod"
+          echo "$HOME/pin-bin" >> "$GITHUB_PATH"; "$HOME/pin-bin/pod" --version
 
-      - name: Gate a (tools, simulator, memory, network, Maestro, early boot)
-        timeout-minutes: 12
-        run: bash ci/gate-a.sh
+      - name: Gate a - toolchain, simulator, Maestro, network (first minutes)
+        shell: bash
+        run: |
+          set -eo pipefail
+          mkdir -p out/logs; : > "$CM_FILE_ENV"
+          . .maestro/cm-lim.sh; trap cm_publish EXIT
+          lim 90 bash .maestro/cm-gates.sh toolchain 2>&1 | tee out/logs/a-toolchain.log
+          IPHONE_UDID=$(sed -n 's/^IPHONE_UDID=//p' out/sims.env)
+          if [ "$FAULT" = d-cold ]; then
+            lim 120 xcrun simctl erase "$IPHONE_UDID" 2>&1 | tee out/logs/a-boot.log; echo "fault d-cold: erased, no early boot" | tee -a out/logs/a-boot.log
+          else
+            lim 60 xcrun simctl boot "$IPHONE_UDID" 2>&1 | tee out/logs/a-boot.log || true
+          fi
+          lim 30 bash .maestro/netcheck.sh out/logs/a-net.txt gate-a || { echo "GATE a FAIL: auth host unreachable from the Mac"; exit 1; }
+          lim 120 bash -c 'set -o pipefail; curl -fsSL "https://get.maestro.mobile.dev" | bash' 2>&1 | tee out/logs/maestro-install.log
+          MVS=$(lim 30 "$HOME/.maestro/bin/maestro" --version 2>/dev/null | { grep -x -E '[0-9]+\.[0-9]+\.[0-9]+' || true; } | sort -u | tr '\n' ' ' | sed 's/ $//')
+          echo "maestro $MVS" | tee -a out/logs/maestro-install.log
+          [ "$MVS" = "$MAESTRO_VERSION" ] || { echo "GATE a FAIL: maestro [$MVS], expected exactly $MAESTRO_VERSION"; exit 1; }
+          echo "GATE a ok"
 
-      - name: Turn off updates for the CI build
-        run: node -e 'const f="app.json",fs=require("fs"),a=JSON.parse(fs.readFileSync(f));a.expo.updates={...(a.expo.updates||{}),enabled:false};fs.writeFileSync(f,JSON.stringify(a,null,2))'
+      - name: Disable expo-updates on this build copy (no OTA fetch)
+        shell: bash
+        run: |
+          set -eo pipefail
+          . .maestro/cm-lim.sh; trap cm_publish EXIT
+          lim 60 node -e "const f='app.json';const a=require('./'+f);a.expo.updates={...a.expo.updates,enabled:false};require('fs').writeFileSync(f,JSON.stringify(a,null,2))"
 
       - name: npm ci
-        timeout-minutes: 15
-        run: . ci/lib.sh && timed npm-ci 900 npm ci --no-audit --no-fund
-
-      - name: prebuild
-        timeout-minutes: 10
-        run: . ci/lib.sh && timed prebuild 600 npx expo prebuild --platform ios --no-install
-
-      - name: pods
-        timeout-minutes: 20
-        run: . ci/lib.sh && timed pods 1200 bash -c 'cd ios && pod install'
-
-      - name: Release simulator build
-        timeout-minutes: 40
-        run: . ci/lib.sh && timed xcodebuild 2400 bash ci/build.sh
-
-      - name: Gate b (Hermes bundle, positive control, id count)
-        run: bash ci/gate-b.sh
-
-      - name: iPhone run (install, launch, driver, login, wait, one resubmit)
-        timeout-minutes: 25
-        run: bash ci/run.sh
-
-      - name: Secret sweep
-        if: always()
-        run: bash ci/sweep.sh
-
-      - name: Step times
-        if: always()
+        shell: bash
         run: |
-          { echo '| step | seconds | rc | cap |'; echo '|---|---|---|---|'
-            awk -F'\t' '{print "| "$1" | "$2" | "$3" | "$4" |"}' "$OUT/steps.tsv" 2>/dev/null || echo "no steps.tsv"
-            echo; cat "$OUT/result.txt" 2>/dev/null || echo "no result.txt"; } >> "$GITHUB_STEP_SUMMARY"
-          cat "$OUT/steps.tsv" 2>/dev/null || true
+          set -eo pipefail
+          . .maestro/cm-lim.sh; trap cm_publish EXIT
+          lim 300 npm ci 2>&1 | tee out/logs/npm-ci.log
+
+      - name: Prebuild iOS
+        shell: bash
+        run: |
+          set -eo pipefail
+          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          lim 60 npx expo prebuild --platform ios --no-install 2>&1 | tee out/logs/prebuild.log
+
+      - name: Pods
+        shell: bash
+        run: |
+          set -eo pipefail
+          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          cd ios && lim 280 pod install 2>&1 | tee ../out/logs/pods.log
+
+      - name: Build (Release, simulator, arm64)
+        shell: bash
+        run: |
+          set -eo pipefail
+          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          WS=ios/app.xcworkspace; SCHEME=app; DD=build; APP="$PWD/build/Build/Products/Release-iphonesimulator/app.app"
+          [ -d "$WS" ] || { echo "GATE build FAIL: $WS missing (have: $(ls -d ios/*.xcworkspace 2>/dev/null | tr '\n' ' '))"; exit 1; }
+          lim 60 xcodebuild -workspace "$WS" -list -json > out/logs/schemes.json
+          node -e "const s=JSON.parse(require('fs').readFileSync('out/logs/schemes.json','utf8')).workspace.schemes;console.log('schemes='+s.join(','));if(s.filter(x=>x==='app').length!==1){console.log('GATE build FAIL: scheme app not listed exactly once');process.exit(1)}"
+          echo "workspace=$WS scheme=$SCHEME configuration=Release derivedData=$DD app=$APP" | tee out/logs/build-head.log
+          lim 1500 xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath "$DD" \
+            ONLY_ACTIVE_ARCH=YES ARCHS=arm64 CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build > out/logs/xcodebuild.log 2>&1 || { tail -80 out/logs/xcodebuild.log; exit 1; }
+          tail -40 out/logs/xcodebuild.log
+          [ -d "$APP" ] || { echo "GATE build FAIL: $APP missing (have: $(ls -d build/Build/Products/Release-iphonesimulator/*.app 2>/dev/null | tr '\n' ' '))"; exit 1; }
+          printf 'APP_PATH=%q\n' "$APP" >> "$CM_FILE_ENV"
+          ls -la "$APP" | sed -n 1,10p
+
+      - name: Gate b - .app, Hermes, made-up values 1 each, other values 0
+        shell: bash
+        run: |
+          set -eo pipefail
+          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          lim 60 bash .maestro/cm-gates.sh bundle 2>&1 | tee out/logs/b-bundle.log
+
+      - name: iPhone (portrait) - login, home
+        shell: bash
+        run: |
+          set -eo pipefail
+          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          export PATH="$HOME/.maestro/bin:$PATH"
+          export LOGIN_ID="$E2E_0003_LOGIN" LOGIN_PW="$E2E_0003_PASSWORD"
+          RC=0
+          bash .maestro/cm-run.sh "$IPHONE_UDID" iphone PORTRAIT 2>&1 | tee out/logs/iphone.log || RC=$?
+          exit $RC
 
       - name: Pass marker
-        run: echo "REHEARSAL PASS fault=$FAULT"
+        shell: bash
+        run: |
+          . .maestro/cm-lim.sh; trap cm_publish EXIT
+          touch out/PASS
+
+      - name: Step times and withheld count (record only)
+        if: always()
+        shell: bash
+        run: |
+          { echo "fault=$FAULT deadline=$CM_DEADLINE_SEC t0=$(cat out/t0 2>/dev/null) end=$(date +%s)"
+            cat out/iphone/result.txt 2>/dev/null || echo "no iphone result"
+            echo "withheld: $(find "$HOME/cm-withheld" -type f 2>/dev/null | wc -l | tr -d ' ') files"
+            grep -h '^secret-count' "$HOME/cm-publish.log" 2>/dev/null || echo "no publish log"
+            cat out/fault.txt 2>/dev/null || true; } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
-          path: out/
+          path: upload/
           retention-days: 14

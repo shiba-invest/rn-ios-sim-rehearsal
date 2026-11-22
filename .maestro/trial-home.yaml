@@ -1,0 +1,7 @@
+appId: dev.rehearsal.sim
+---
+- extendedWaitUntil:
+    visible: "ホーム"
+    timeout: 90000
+- waitForAnimationToEnd
+- takeScreenshot: 02-home

@@ -7,12 +7,12 @@ appId: dev.rehearsal.sim
 - extendedWaitUntil:
     visible: "れんしゅう"
     timeout: 90000
-- waitForAnimationToEnd:
-    timeout: 1500
+- waitForAnimationToEnd
 - runFlow:
     when:
       visible: "ID・パスワードでログイン"
     commands:
+      - takeScreenshot: 00-mode
       - tapOn: "ID・パスワードでログイン"
 - extendedWaitUntil:
     visible: "例: 001"
@@ -22,14 +22,12 @@ appId: dev.rehearsal.sim
       true: ${ORIENT == "LANDSCAPE"}
     commands:
       - setOrientation: LANDSCAPE_LEFT
-      - waitForAnimationToEnd:
-          timeout: 1500
+      - waitForAnimationToEnd
+- takeScreenshot: 01-login
 - tapOn: "例: 001"
-- eraseText: 20
 - inputText: ${LOGIN_ID}
 - tapOn:
     text: "パスワード"
     index: 1
-- eraseText: 40
 - inputText: ${LOGIN_PW}
 - pressKey: Enter
