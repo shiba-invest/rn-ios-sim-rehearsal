@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       fault:
-        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord"
+        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot"
         required: true
         default: none
         type: choice
-        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord]
+        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot]
       gate_only:
         description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
         required: false
@@ -259,13 +259,14 @@ jobs:
           . .maestro/cm-lim.sh step=b; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
           lim 60 bash .maestro/cm-gates.sh bundle 2>&1 | tee out/logs/b-bundle.log
 
-      - name: Practice only - fault noboot (simulator deleted before cm-run.sh boots it)
+      - name: Practice only - fault noboot (simulator deleted) or keepboot (left booted after cm-run.sh)
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: /bin/bash --noprofile --norc {0}
         run: |
           #!/bin/bash
           set -a; . "$CM_FILE_ENV"; set +a
           if [ "$FAULT" = noboot ]; then xcrun simctl delete "$IPHONE_UDID"; echo "fault noboot: simulator deleted rc=$?" | tee -a out/fault.txt; fi
+          if [ "$FAULT" = keepboot ]; then sed -i '' 's/^  limf 30 xcrun simctl shutdown "$UDID"/  : keepboot; true/' .maestro/cm-run.sh; echo "fault keepboot: simulator left booted n=$(grep -c ': keepboot' .maestro/cm-run.sh)" | tee -a out/fault.txt; fi
 
       - name: iPhone (portrait) - login, home, list, one record
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
