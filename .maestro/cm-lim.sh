@@ -43,8 +43,11 @@ cm_need_values() { local i="${E2E_0003_LOGIN:-}" p="${E2E_0003_PASSWORD:-}"
 
 lim() { local s="$1"; shift; local left; left=$(cm_left)
   if [ "$left" -le 0 ]; then echo "DEADLINE: second $CM_DEADLINE_SEC passed, not starting $1" >&2; return 142; fi
-  if [ "$left" -lt "$s" ]; then echo "lim: $1 limited to ${left}s by the deadline" >&2; s="$left"; fi
-  limf "$s" "$@"; }
+  local cut=0; if [ "$left" -lt "$s" ]; then echo "lim: $1 limited to ${left}s by the deadline" >&2; s="$left"; cut=1; fi
+  local r=0; limf "$s" "$@" || r=$?
+
+  if [ "$cut" = 1 ] && [ "$r" = 142 ]; then echo "DEADLINE hit: $1 cut at ${s}s by the deadline (second $CM_DEADLINE_SEC) in step ${CM_STEP:-?}" >> "$CM_ROOT/out/logs/causes.txt" 2>/dev/null || true; fi
+  return "$r"; }
 
 
 expect() { if grep -q -F -- "$2" "$1"; then echo "PREDICT ok [$3] $2"; else echo "PREDICT FAIL [$3]: expected line not seen: $2"; exit 1; fi; }
@@ -61,16 +64,17 @@ cm_quiet() { local r=0
   if command -v pkill >/dev/null 2>&1; then
     pkill -INT -f 'simctl io .* recordVideo' 2>/dev/null || true; pkill -f '^log stream' 2>/dev/null || true; fi
   command -v xcrun >/dev/null 2>&1 || return 0
-  limf 60 xcrun simctl list devices booted > "$HOME/cm-booted.txt" 2>/dev/null || true
+  limf 200 xcrun simctl list devices booted > "$HOME/cm-booted.txt" 2>/dev/null || true
   if grep -q '(Booted)' "$HOME/cm-booted.txt" 2>/dev/null; then
     limf 30 xcrun simctl shutdown all || r=$?; echo "publish: simulators shut down first (rc=$r)"; fi; return 0; }
 
 
 cm_publish() { local rc0=$? r=0 t0 ctx
-  case "${CM_STEP:-}" in ''|probe|status) ;; *) echo "step ${CM_STEP} rc=$rc0 left=$(cm_left)" >> "$CM_ROOT/out/logs/causes.txt" 2>/dev/null || true;; esac
+  case "${CM_STEP:-}" in ''|probe|status) ;; *) local lf; lf=$(cm_left); echo "step ${CM_STEP} rc=$rc0 left=$lf" >> "$CM_ROOT/out/logs/causes.txt" 2>/dev/null || true
+     if [ "$rc0" -ne 0 ] && [ "$lf" -le 0 ]; then echo "DEADLINE hit in step ${CM_STEP} (rc=$rc0, second $CM_DEADLINE_SEC passed)" >> "$CM_ROOT/out/logs/causes.txt" 2>/dev/null || true; fi;; esac
   cm_quiet; t0=$(date +%s)
   LOGIN_ID="${LOGIN_ID:-${E2E_0003_LOGIN:-}}" LOGIN_PW="${LOGIN_PW:-${E2E_0003_PASSWORD:-}}" GH_STATUS_TOKEN="${CM_GHT:-}" \
-    limf 120 node "$CM_ROOT/.maestro/cm-scrub.js" "$CM_ROOT/out" "$HOME/cm-withheld" "$HOME/cm-count.txt" > "$HOME/cm-publish.log" 2>&1 || r=$?
+    limf 160 node "$CM_ROOT/.maestro/cm-scrub.js" "$CM_ROOT/out" "$HOME/cm-withheld" "$HOME/cm-count.txt" > "$HOME/cm-publish.log" 2>&1 || r=$?
   if [ "$r" -ne 0 ]; then
     mkdir -p "$CM_ROOT/upload"; echo "publish-failed scrub rc=$r seconds=$(( $(date +%s) - t0 )) step=${CM_STEP:-?}" > "$CM_ROOT/upload/publish-failed.txt"
     echo "publish: scrub rc=$r after $(( $(date +%s) - t0 )) s, nothing of out/ copied to upload/ (summary below: keys and verdicts only)"

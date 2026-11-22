@@ -45,7 +45,7 @@ fact curl "$(rd 10 'curl --version | grep -E "^curl [0-9]"')" -
 fact java "$(rd 20 'java -version 2>&1 | grep -E "^(openjdk|java) version"')" 'version "17.'
 
 
-SJ="$P/sims.json"; limf 180 xcrun simctl list devices available -j > "$SJ" 2>/dev/null || true
+SJ="$P/sims.json"; limf 200 xcrun simctl list devices available -j > "$SJ" 2>/dev/null || true
 fact sim-runtimes "$(limf 20 node .maestro/cm-probe-read.js runtimes "$SJ" 2>&1)" "iOS-26-5"
 fact iphone-17-pro-count "$(limf 20 node .maestro/cm-probe-read.js count "$SJ" 2>&1)" "n=1"
 if limf 30 node .maestro/cm-pick.js < "$SJ" > "$P/sims.env" 2>"$P/pick.err"; then

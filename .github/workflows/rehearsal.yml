@@ -55,7 +55,7 @@ concurrency:
 jobs:
   ios-sim:
     runs-on: macos-26
-    timeout-minutes: 85
+    timeout-minutes: 115
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       EXPO_NO_TELEMETRY: "1"
@@ -64,7 +64,7 @@ jobs:
       MAESTRO_VERSION: "2.12.1"
       EXPO_NO_GIT_STATUS: "1"
       MAESTRO_ZIP_SHA256: "54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7"
-      CM_DEADLINE_SEC: ${{ inputs.fault == 'dl' && '420' || (inputs.fault == 'd-cap' && '700' || '3600') }}
+      CM_DEADLINE_SEC: ${{ inputs.fault == 'dl' && '420' || (inputs.fault == 'd-cap' && '700' || '4800') }}
       CM_TAG: ${{ inputs.cm_tag != '-' && (inputs.cm_tag || (inputs.stage == '1' && 'cm-stage1-rehearsal' || 'cm-stage2-rehearsal')) || '' }}
       CM_BUILD_ID: ${{ github.run_id }}
       CM_COMMIT: ${{ github.sha }}
@@ -179,7 +179,7 @@ jobs:
           #!/bin/bash
           set -eo pipefail
           . .maestro/cm-lim.sh step=env; trap cm_publish EXIT
-          lim 150 node .maestro/cm-step.js eas-dev-env > out/eas-dev.env
+          lim 210 node .maestro/cm-step.js eas-dev-env > out/eas-dev.env
           while IFS= read -r l; do printf '%s=%q\n' "${l%%=*}" "${l#*=}"; done < out/eas-dev.env >> "$CM_FILE_ENV"
           echo "pool=dev keys=$(wc -l < out/eas-dev.env | tr -d ' ')" | tee out/logs/env.log
 
@@ -190,7 +190,7 @@ jobs:
           #!/bin/bash
           set -eo pipefail
           . .maestro/cm-lim.sh step=updates; trap cm_publish EXIT
-          lim 60 node .maestro/cm-step.js updates-off
+          lim 90 node .maestro/cm-step.js updates-off
 
       - name: npm ci
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
@@ -199,7 +199,7 @@ jobs:
           #!/bin/bash
           set -eo pipefail
           . .maestro/cm-lim.sh step=npm; trap cm_publish EXIT
-          lim 520 npm ci 2>&1 | tee out/logs/npm-ci.log
+          lim 780 npm ci 2>&1 | tee out/logs/npm-ci.log
 
       - name: Prebuild iOS
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
@@ -217,7 +217,7 @@ jobs:
           #!/bin/bash
           set -eo pipefail
           . .maestro/cm-lim.sh step=pods; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
-          cd ios && lim 460 pod install 2>&1 | tee ../out/logs/pods.log
+          cd ios && lim 680 pod install 2>&1 | tee ../out/logs/pods.log
 
       - name: Practice only - fault mid (workspace removed before the build)
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'

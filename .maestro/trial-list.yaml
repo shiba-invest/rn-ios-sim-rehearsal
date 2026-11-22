@@ -37,6 +37,14 @@ appId: dev.rehearsal.sim
     commands:
       - tapOn: "前の月"
       - waitForAnimationToEnd
+
+
+
+- runFlow:
+    when:
+      notVisible: ".*の記録（画像.*枚）を開く"
+    commands:
+      - takeScreenshot: 05-no-record-7-months
 - takeScreenshot: 05-list-with-record
 - tapOn: ".*の記録（画像.*枚）を開く"
 - waitForAnimationToEnd
