@@ -1,3 +1,5 @@
+
+
 appId: dev.rehearsal.sim
 ---
 - launchApp:
@@ -8,6 +10,7 @@ appId: dev.rehearsal.sim
     visible: "れんしゅう"
     timeout: 90000
 - waitForAnimationToEnd
+
 - runFlow:
     when:
       visible: "ID・パスワードでログイン"

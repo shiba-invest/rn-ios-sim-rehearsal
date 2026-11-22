@@ -1,0 +1,43 @@
+
+
+appId: dev.rehearsal.sim
+---
+
+
+- tapOn:
+    text: "ホーム"
+    index: 1
+    optional: true
+- extendedWaitUntil:
+    visible: "記録の一覧"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      notVisible: "記録の一覧"
+    commands:
+      - tapOn:
+          text: "ホーム"
+          index: 0
+- extendedWaitUntil:
+    visible: "記録の一覧"
+    timeout: 60000
+- waitForAnimationToEnd
+- takeScreenshot: 03-list-top
+- tapOn: "記録の一覧"
+- extendedWaitUntil:
+    visible: "月をえらぶ"
+    timeout: 60000
+- waitForAnimationToEnd
+- takeScreenshot: 04-list
+- repeat:
+    times: 6
+    while:
+      notVisible: ".*の記録（画像.*枚）を開く"
+    commands:
+      - tapOn: "前の月"
+      - waitForAnimationToEnd
+- takeScreenshot: 05-list-with-record
+- tapOn: ".*の記録（画像.*枚）を開く"
+- waitForAnimationToEnd
+- takeScreenshot: 06-record-open

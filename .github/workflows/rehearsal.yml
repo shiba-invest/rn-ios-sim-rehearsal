@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       fault:
-        description: "none | a | b | c-up | d-cold | d-cap | e"
+        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl"
         required: true
         default: none
         type: choice
-        options: [none, a, b, c-up, d-cold, d-cap, e]
+        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl]
       gate_only:
         description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
         required: false
@@ -25,12 +25,12 @@ on:
         type: choice
         options: ["2", "1"]
       cm_tag:
-        description: "stage 1 CM_TAG (- = empty; not cm-stage1-* = both outside writes skipped)"
+        description: "CM_TAG (empty = cm-stage1-rehearsal or cm-stage2-rehearsal by stage; - = empty)"
         required: false
-        default: "cm-stage1-rehearsal"
+        default: ""
         type: string
       repo_slug:
-        description: "stage 1 CM_REPO_SLUG (empty = github.repository; - = empty, to test the git remote fallback)"
+        description: "CM_REPO_SLUG (empty = github.repository; - = empty, to test the git remote fallback)"
         required: false
         default: ""
         type: string
@@ -55,14 +55,21 @@ concurrency:
 jobs:
   ios-sim:
     runs-on: macos-26
-    timeout-minutes: 42
+    timeout-minutes: 85
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       EXPO_NO_TELEMETRY: "1"
       MAESTRO_CLI_NO_ANALYTICS: "1"
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
       MAESTRO_VERSION: "2.12.1"
-      CM_DEADLINE_SEC: ${{ inputs.fault == 'd-cap' && '700' || '1866' }}
+      EXPO_NO_GIT_STATUS: "1"
+      MAESTRO_ZIP_SHA256: "54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7"
+      CM_DEADLINE_SEC: ${{ inputs.fault == 'dl' && '420' || (inputs.fault == 'd-cap' && '700' || '3600') }}
+      CM_TAG: ${{ inputs.cm_tag != '-' && (inputs.cm_tag || (inputs.stage == '1' && 'cm-stage1-rehearsal' || 'cm-stage2-rehearsal')) || '' }}
+      CM_BUILD_ID: ${{ github.run_id }}
+      CM_COMMIT: ${{ github.sha }}
+      CM_REPO_SLUG: ${{ inputs.repo_slug != '-' && github.repository || '' }}
+      GH_STATUS_TOKEN: ${{ github.token }}
       CM_FILE_ENV: out/cm.env
       AUTH_REGION: ap-northeast-1
       # Made-up practice values (no account exists for them).
@@ -103,27 +110,6 @@ jobs:
           bash .maestro/cm-probe.sh 2>&1 | tee out/probe-console.log || true
           exit 0
 
-      - name: Gate a - toolchain, simulator, Maestro, network (first minutes)
-        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
-        run: |
-          set -eo pipefail
-          mkdir -p out/logs; : > "$CM_FILE_ENV"
-          . .maestro/cm-lim.sh; trap cm_publish EXIT
-          lim 90 bash .maestro/cm-gates.sh toolchain 2>&1 | tee out/logs/a-toolchain.log
-          IPHONE_UDID=$(sed -n 's/^IPHONE_UDID=//p' out/sims.env)
-          if [ "$FAULT" = d-cold ]; then
-            lim 120 xcrun simctl erase "$IPHONE_UDID" 2>&1 | tee out/logs/a-boot.log; echo "fault d-cold: erased, no early boot" | tee -a out/logs/a-boot.log
-          else
-            lim 60 xcrun simctl boot "$IPHONE_UDID" 2>&1 | tee out/logs/a-boot.log || true
-          fi
-          lim 30 bash .maestro/netcheck.sh out/logs/a-net.txt gate-a || { echo "GATE a FAIL: auth host unreachable from the Mac"; exit 1; }
-          lim 120 bash -c 'set -o pipefail; curl -fsSL "https://get.maestro.mobile.dev" | bash' 2>&1 | tee out/logs/maestro-install.log
-          MVS=$(lim 30 "$HOME/.maestro/bin/maestro" --version 2>/dev/null | { grep -x -E '[0-9]+\.[0-9]+\.[0-9]+' || true; } | sort -u | tr '\n' ' ' | sed 's/ $//')
-          echo "maestro $MVS" | tee -a out/logs/maestro-install.log
-          [ "$MVS" = "$MAESTRO_VERSION" ] || { echo "GATE a FAIL: maestro [$MVS], expected exactly $MAESTRO_VERSION"; exit 1; }
-          echo "GATE a ok"
-
       - name: Gate a measurement (A = network then boot, B = boot then network)
         if: env.GATE_ONLY != 'none' && env.STAGE == '2'
         shell: bash
@@ -143,83 +129,187 @@ jobs:
           echo "memory-after free_mb=$(( $(vm_stat | awk '/Pages free|Pages inactive|Pages speculative/ {gsub(/[.]/,"",$NF); s+=$NF} END {print s+0}') * $(sysctl -n hw.pagesize) / 1048576 )) load=$(sysctl -n vm.loadavg)" | tee -a "$M"
           cat "$M" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Gate a - toolchain, simulator pick, network, Maestro (first minutes, no boot)
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
+        shell: /bin/bash --noprofile --norc {0}
+        run: |
+          #!/bin/bash
+          set -eo pipefail
+          mkdir -p out/logs; : > "$CM_FILE_ENV"
+          . .maestro/cm-lim.sh step=a
+
+
+          case "${CM_TAG:-}" in cm-stage2-*) ;; *) echo "GATE a FAIL: CM_TAG is not cm-stage2-* (nothing run, nothing written)"; exit 1;; esac
+          trap cm_publish EXIT
+          cm_need_values || exit 1
+
+          GH_STATUS_TOKEN="$CM_GHT" limf 30 node .maestro/cm-ghstatus.js codemagic/ios-sim-verify pending "stage 2 running" || true
+          lim 250 bash .maestro/cm-gates.sh toolchain 2>&1 | tee out/logs/a-toolchain.log
+
+
+
+          lim 30 bash .maestro/netcheck.sh out/logs/a-net.txt gate-a || { cm_say "GATE a FAIL: Cognito unreachable from the Mac"; exit 1; }
+
+
+
+
+          MZ_URL="https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          MZ="$HOME/maestro-$MAESTRO_VERSION.zip"; MOK=0; MA=0
+          for a in 1 2; do
+            MA=$a
+            if lim 300 curl -fsSL -o "$MZ" "$MZ_URL" 2>>out/logs/maestro-install.log && [ "$(shasum -a 256 "$MZ" | cut -c1-64)" = "$MAESTRO_ZIP_SHA256" ]; then MOK=1; break; fi
+            echo "maestro-download attempt $a failed (rc 142 = over the limit, or the sha256 differs)" | tee -a out/logs/maestro-install.log
+            if [ "$a" = 1 ]; then sleep 20; fi
+          done
+          echo "maestro-download attempts=$MA ok=$MOK" | tee -a out/logs/maestro-install.log
+          [ "$MOK" = 1 ] || { cm_say "GATE a FAIL: maestro zip with the pinned sha256 not downloaded in 2 attempts"; exit 1; }
+          mkdir -p "$HOME/mz" "$HOME/.maestro"
+          lim 120 unzip -qo "$MZ" -d "$HOME/mz" 2>&1 | tee -a out/logs/maestro-install.log
+          cp -R "$HOME/mz/maestro/." "$HOME/.maestro/"
+
+          MVS=$(lim 30 "$HOME/.maestro/bin/maestro" --version 2>/dev/null | { grep -x -E '[0-9]+\.[0-9]+\.[0-9]+' || true; } | sort -u | tr '\n' ' ' | sed 's/ $//') || MVS=""
+          echo "maestro $MVS" | tee -a out/logs/maestro-install.log
+          [ "$MVS" = "$MAESTRO_VERSION" ] || { cm_say "GATE a FAIL: maestro [$MVS], expected exactly $MAESTRO_VERSION"; exit 1; }
+          cm_say "GATE a ok"
+
+      - name: Dev env from eas.json preview-dev (dev values only)
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
+        shell: /bin/bash --noprofile --norc {0}
+        run: |
+          #!/bin/bash
+          set -eo pipefail
+          . .maestro/cm-lim.sh step=env; trap cm_publish EXIT
+          lim 150 node .maestro/cm-step.js eas-dev-env > out/eas-dev.env
+          while IFS= read -r l; do printf '%s=%q\n' "${l%%=*}" "${l#*=}"; done < out/eas-dev.env >> "$CM_FILE_ENV"
+          echo "pool=dev keys=$(wc -l < out/eas-dev.env | tr -d ' ')" | tee out/logs/env.log
+
       - name: Disable expo-updates on this build copy (no OTA fetch)
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
+        shell: /bin/bash --noprofile --norc {0}
         run: |
+          #!/bin/bash
           set -eo pipefail
-          . .maestro/cm-lim.sh; trap cm_publish EXIT
-          lim 60 node -e "const f='app.json';const a=require('./'+f);a.expo.updates={...a.expo.updates,enabled:false};require('fs').writeFileSync(f,JSON.stringify(a,null,2))"
+          . .maestro/cm-lim.sh step=updates; trap cm_publish EXIT
+          lim 60 node .maestro/cm-step.js updates-off
 
       - name: npm ci
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
+        shell: /bin/bash --noprofile --norc {0}
         run: |
+          #!/bin/bash
           set -eo pipefail
-          . .maestro/cm-lim.sh; trap cm_publish EXIT
-          lim 300 npm ci 2>&1 | tee out/logs/npm-ci.log
+          . .maestro/cm-lim.sh step=npm; trap cm_publish EXIT
+          lim 520 npm ci 2>&1 | tee out/logs/npm-ci.log
 
       - name: Prebuild iOS
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
+        shell: /bin/bash --noprofile --norc {0}
         run: |
+          #!/bin/bash
           set -eo pipefail
-          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          . .maestro/cm-lim.sh step=prebuild; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
           lim 60 npx expo prebuild --platform ios --no-install 2>&1 | tee out/logs/prebuild.log
 
       - name: Pods
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
+        shell: /bin/bash --noprofile --norc {0}
         run: |
+          #!/bin/bash
           set -eo pipefail
-          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
-          cd ios && lim 280 pod install 2>&1 | tee ../out/logs/pods.log
+          . .maestro/cm-lim.sh step=pods; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          cd ios && lim 460 pod install 2>&1 | tee ../out/logs/pods.log
+
+      - name: Practice only - fault mid (workspace removed before the build)
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
+        shell: /bin/bash --noprofile --norc {0}
+        run: |
+          #!/bin/bash
+          if [ "$FAULT" = mid ]; then rm -rf ios/app.xcworkspace; echo "fault mid: ios/app.xcworkspace removed" | tee -a out/fault.txt; fi
 
       - name: Build (Release, simulator, arm64)
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
+        shell: /bin/bash --noprofile --norc {0}
         run: |
+          #!/bin/bash
           set -eo pipefail
-          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          . .maestro/cm-lim.sh step=build; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+
+
+
           WS=ios/app.xcworkspace; SCHEME=app; DD=build; APP="$PWD/build/Build/Products/Release-iphonesimulator/app.app"
-          [ -d "$WS" ] || { echo "GATE build FAIL: $WS missing (have: $(ls -d ios/*.xcworkspace 2>/dev/null | tr '\n' ' '))"; exit 1; }
-          lim 60 xcodebuild -workspace "$WS" -list -json > out/logs/schemes.json
-          node -e "const s=JSON.parse(require('fs').readFileSync('out/logs/schemes.json','utf8')).workspace.schemes;console.log('schemes='+s.join(','));if(s.filter(x=>x==='app').length!==1){console.log('GATE build FAIL: scheme app not listed exactly once');process.exit(1)}"
+          [ -d "$WS" ] || { cm_say "GATE build FAIL: $WS missing (have: $(ls -d ios/*.xcworkspace 2>/dev/null | tr '\n' ' '))"; exit 1; }
+          lim 120 xcodebuild -workspace "$WS" -list -json > out/logs/schemes.json
+          lim 30 node .maestro/cm-step.js scheme-once out/logs/schemes.json "$SCHEME"
           echo "workspace=$WS scheme=$SCHEME configuration=Release derivedData=$DD app=$APP" | tee out/logs/build-head.log
-          lim 1500 xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \
+          lim 2780 xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath "$DD" \
             ONLY_ACTIVE_ARCH=YES ARCHS=arm64 CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build > out/logs/xcodebuild.log 2>&1 || { tail -80 out/logs/xcodebuild.log; exit 1; }
           tail -40 out/logs/xcodebuild.log
-          [ -d "$APP" ] || { echo "GATE build FAIL: $APP missing (have: $(ls -d build/Build/Products/Release-iphonesimulator/*.app 2>/dev/null | tr '\n' ' '))"; exit 1; }
+          [ -d "$APP" ] || { cm_say "GATE build FAIL: $APP missing (have: $(ls -d build/Build/Products/Release-iphonesimulator/*.app 2>/dev/null | tr '\n' ' '))"; exit 1; }
           printf 'APP_PATH=%q\n' "$APP" >> "$CM_FILE_ENV"
           ls -la "$APP" | sed -n 1,10p
 
-      - name: Gate b - .app, Hermes, made-up values 1 each, other values 0
+      - name: Gate b - .app, Hermes, dev 1 each, prod 0
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
+        shell: /bin/bash --noprofile --norc {0}
         run: |
+          #!/bin/bash
           set -eo pipefail
-          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          . .maestro/cm-lim.sh step=b; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
           lim 60 bash .maestro/cm-gates.sh bundle 2>&1 | tee out/logs/b-bundle.log
 
-      - name: iPhone (portrait) - login, home
+      - name: Practice only - fault noboot (simulator deleted before cm-run.sh boots it)
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
+        shell: /bin/bash --noprofile --norc {0}
         run: |
+          #!/bin/bash
+          set -a; . "$CM_FILE_ENV"; set +a
+          if [ "$FAULT" = noboot ]; then xcrun simctl delete "$IPHONE_UDID"; echo "fault noboot: simulator deleted rc=$?" | tee -a out/fault.txt; fi
+
+      - name: iPhone (portrait) - login, home, list, one record
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
+        shell: /bin/bash --noprofile --norc {0}
+        run: |
+          #!/bin/bash
           set -eo pipefail
-          . .maestro/cm-lim.sh; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
+          . .maestro/cm-lim.sh step=iphone; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
           export PATH="$HOME/.maestro/bin:$PATH"
-          export LOGIN_ID="$E2E_0003_LOGIN" LOGIN_PW="$E2E_0003_PASSWORD"
+          export LOGIN_ID="${E2E_0003_LOGIN:-}" LOGIN_PW="${E2E_0003_PASSWORD:-}"
           RC=0
           bash .maestro/cm-run.sh "$IPHONE_UDID" iphone PORTRAIT 2>&1 | tee out/logs/iphone.log || RC=$?
+
           exit $RC
 
       - name: Pass marker
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
-        shell: bash
+        shell: /bin/bash --noprofile --norc {0}
         run: |
-          . .maestro/cm-lim.sh; trap cm_publish EXIT
+          #!/bin/bash
+          . .maestro/cm-lim.sh step=pass; trap cm_publish EXIT
+
+          OKN=0
+          grep -q '^GATE toolchain ok' out/logs/a-toolchain.log 2>/dev/null && OKN=$((OKN+1))
+          grep -q '^pool=dev ' out/logs/env.log 2>/dev/null && OKN=$((OKN+1))
+          grep -q '^GATE bundle ok' out/logs/b-bundle.log 2>/dev/null && OKN=$((OKN+1))
+          grep -q '^iphone-result=ok$' out/iphone/result.txt 2>/dev/null && OKN=$((OKN+1))
+          cm_say "pass-check $OKN of 4 (toolchain, dev env, bundle, iphone-result=ok)"
+          [ "$OKN" = 4 ] || { cm_say "PASS not written: $OKN of 4"; exit 1; }
           touch out/PASS
+
+      - name: Pass or fail to the GitHub commit status
+        if: always() && env.GATE_ONLY == 'none' && env.STAGE == '2'
+        shell: /bin/bash --noprofile --norc {0}
+        run: |
+          #!/bin/bash
+
+          case "${CM_TAG:-}" in cm-stage2-*) ;; *) echo "status skipped=tag-not-cm-stage2"; exit 0;; esac
+          . .maestro/cm-lim.sh step=status
+          S=failure; [ -f out/PASS ] && S=success
+          GH_STATUS_TOKEN="$CM_GHT" limf 60 node .maestro/cm-ghstatus.js codemagic/ios-sim-verify "$S" "stage 2 $S"
+
+
+
+          GH_STATUS_TOKEN="$CM_GHT" limf 45 node .maestro/cm-s2-status.js upload out/logs/causes.txt || true
 
       - name: Step times and withheld count (record only)
         if: always()

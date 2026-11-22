@@ -25,6 +25,22 @@ cm_time() { local j=1 at f
   echo "$at limit=$1 took=$2 rc=$3 cmd=$(basename "$4")" >> "$CM_ROOT/out/logs/lim-times.txt" 2>/dev/null || true; }
 cm_left() { echo $(( $(cat "$CM_ROOT/out/t0") + CM_DEADLINE_SEC - $(date +%s) )); }
 
+
+
+
+
+
+cm_say() { echo "$*"; echo "$*" >> "$CM_ROOT/out/logs/causes.txt" 2>/dev/null || true; }
+case "${CM_STEP:-}" in ''|probe|status) ;; *) if [ "$(cm_left)" -le 0 ]; then cm_say "DEADLINE: step ${CM_STEP} not started (second $CM_DEADLINE_SEC passed)"; exit 1; fi;; esac
+
+
+CM_GHT="${GH_STATUS_TOKEN:-}"
+case "${CM_STEP:-}" in ''|probe|status) ;; *) export -n GH_STATUS_TOKEN 2>/dev/null || true;; esac
+
+cm_need_values() { local i="${E2E_0003_LOGIN:-}" p="${E2E_0003_PASSWORD:-}"
+  if [ "${#i}" -ge 1 ] && [ "${#p}" -ge 4 ] && [ -n "$CM_GHT" ]; then echo "values ok (lengths only)"; return 0; fi
+  cm_say "GATE a FAIL: values missing or short (id=$([ "${#i}" -ge 1 ] && echo ok || echo empty) pw=$([ "${#p}" -ge 4 ] && echo ok || echo short) token=$([ -n "$CM_GHT" ] && echo set || echo empty))"; return 1; }
+
 lim() { local s="$1"; shift; local left; left=$(cm_left)
   if [ "$left" -le 0 ]; then echo "DEADLINE: second $CM_DEADLINE_SEC passed, not starting $1" >&2; return 142; fi
   if [ "$left" -lt "$s" ]; then echo "lim: $1 limited to ${left}s by the deadline" >&2; s="$left"; fi
@@ -45,11 +61,15 @@ cm_quiet() { local r=0
   if command -v pkill >/dev/null 2>&1; then
     pkill -INT -f 'simctl io .* recordVideo' 2>/dev/null || true; pkill -f '^log stream' 2>/dev/null || true; fi
   command -v xcrun >/dev/null 2>&1 || return 0
-  limf 20 xcrun simctl list devices booted > "$HOME/cm-booted.txt" 2>/dev/null || true
+  limf 60 xcrun simctl list devices booted > "$HOME/cm-booted.txt" 2>/dev/null || true
   if grep -q '(Booted)' "$HOME/cm-booted.txt" 2>/dev/null; then
     limf 30 xcrun simctl shutdown all || r=$?; echo "publish: simulators shut down first (rc=$r)"; fi; return 0; }
-cm_publish() { local r=0 t0 ctx; cm_quiet; t0=$(date +%s)
-  LOGIN_ID="${LOGIN_ID:-${E2E_0003_LOGIN:-}}" LOGIN_PW="${LOGIN_PW:-${E2E_0003_PASSWORD:-}}" \
+
+
+cm_publish() { local rc0=$? r=0 t0 ctx
+  case "${CM_STEP:-}" in ''|probe|status) ;; *) echo "step ${CM_STEP} rc=$rc0 left=$(cm_left)" >> "$CM_ROOT/out/logs/causes.txt" 2>/dev/null || true;; esac
+  cm_quiet; t0=$(date +%s)
+  LOGIN_ID="${LOGIN_ID:-${E2E_0003_LOGIN:-}}" LOGIN_PW="${LOGIN_PW:-${E2E_0003_PASSWORD:-}}" GH_STATUS_TOKEN="${CM_GHT:-}" \
     limf 120 node "$CM_ROOT/.maestro/cm-scrub.js" "$CM_ROOT/out" "$HOME/cm-withheld" "$HOME/cm-count.txt" > "$HOME/cm-publish.log" 2>&1 || r=$?
   if [ "$r" -ne 0 ]; then
     mkdir -p "$CM_ROOT/upload"; echo "publish-failed scrub rc=$r seconds=$(( $(date +%s) - t0 )) step=${CM_STEP:-?}" > "$CM_ROOT/upload/publish-failed.txt"
@@ -57,5 +77,5 @@ cm_publish() { local r=0 t0 ctx; cm_quiet; t0=$(date +%s)
     grep -rh -E '^(PROBE summary|FACT |GATE |iphone rc=|flow [a-z-]+ rc=)' "$CM_ROOT/out" > "$HOME/cm-summary.txt" 2>/dev/null || true
     sed -E 's/^(FACT [a-z0-9.-]+) .* (verdict=[A-Z]+)$/\1 \2/; s/^(GATE [a-z]+ (ok|FAIL)).*/\1/' "$HOME/cm-summary.txt" | awk '!s[$0]++' || true
     case "${CM_STEP:-}" in probe) ctx=codemagic/stage1-probe;; *) ctx=codemagic/ios-sim-verify;; esac
-    limf 30 node "$CM_ROOT/.maestro/cm-ghstatus.js" "$ctx" failure "no records: scrub rc=$r" || true; return 0; fi
+    GH_STATUS_TOKEN="${CM_GHT:-}" limf 30 node "$CM_ROOT/.maestro/cm-ghstatus.js" "$ctx" failure "no records: scrub rc=$r" || true; return 0; fi
   mkdir -p "$CM_ROOT/upload" && cp -R "$CM_ROOT/out/." "$CM_ROOT/upload/" && echo "publish: $(grep '^secret-count total' "$HOME/cm-publish.log" || echo 'no total line')"; }
