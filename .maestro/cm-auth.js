@@ -5,9 +5,10 @@
 
 
 
+
 const env = require('../eas.json').build['preview-dev'].env;
 let mark = '';
-try { mark = ((require('fs').readFileSync(require('path').join(__dirname, 'cm-values.txt'), 'utf8').match(/^1 (\S+)\s*$/m)) || [])[1] || ''; } catch (e) { mark = ''; }
+try { mark = ((require('fs').readFileSync(require('path').join(__dirname, 'cm-pool.txt'), 'utf8').match(/^dev-pool-mark (\S+)\s*$/m)) || [])[1] || ''; } catch (e) { mark = ''; }
 const id = process.env.E2E_0003_LOGIN;
 const pw = process.env.E2E_0003_PASSWORD;
 const out = (s) => console.log(`auth ${s}`);
@@ -18,7 +19,7 @@ const msgKind = (m) => { const s = String(m || '');
     : /disabled/i.test(s) ? 'user-disabled' : /not exist/i.test(s) ? 'no-such-user' : s ? 'other' : 'none'; };
 const ws = (v) => (typeof v === 'string' && v !== v.trim() ? 'yes' : 'no');
 (async () => {
-  if (!mark) { out('skipped=no-pool-mark-in-cm-values.txt'); return; }
+  if (!mark) { out('skipped=no-dev-pool-mark-in-cm-pool.txt'); return; }
   if (!String(env.EXPO_PUBLIC_USER_POOL_ID || '').includes(mark)) { out('skipped=not-the-dev-pool'); return; }
   if (!id || !pw) { out(`skipped=value-missing id-set=${id ? 'yes' : 'no'} pw-set=${pw ? 'yes' : 'no'}`); return; }
   out(`id-edge-whitespace=${ws(id)} pw-edge-whitespace=${ws(pw)} id-digits-only=${/^[0-9]+$/.test(id) ? 'yes' : 'no'}`);

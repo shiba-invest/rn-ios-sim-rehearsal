@@ -1,7 +1,7 @@
 
 
 
-CM_ROOT="${CM_ROOT:-$PWD}"; mkdir -p "$CM_ROOT/out/logs"
+CM_ROOT="${CM_ROOT:-$PWD}"; HOME="${HOME:-$CM_ROOT}"; mkdir -p "$CM_ROOT/out/logs"
 [ -f "$CM_ROOT/out/t0" ] || date +%s > "$CM_ROOT/out/t0"
 CM_DEADLINE_SEC="${CM_DEADLINE_SEC:-1866}"
 
