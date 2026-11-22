@@ -55,10 +55,11 @@ function main() {
 
   const L = fs.readFileSync(file, 'utf8').split('\n').map((l) => l.replace(/\r$/, ''));
   L.forEach((l, i) => {
-    let ctx, desc;
+    let ctx, desc, rank = 3;
     const f = l.match(/^FACT (\S+) value=(.*) expect=.* verdict=(MATCH|DIFF|RECORD|MISSING)$/);
-    if (f) { ctx = 'codemagic/s1/' + String(i + 1).padStart(2, '0') + '-' + f[1].replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 60); desc = 'verdict=' + f[3] + ' value=' + f[2]; }
-    else if (/^PROBE summary /.test(l)) { ctx = 'codemagic/s1/99-summary'; desc = l.slice('PROBE summary '.length); }
+    if (f) { ctx = 'codemagic/s1/' + String(i + 1).padStart(2, '0') + '-' + f[1].replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 60); desc = 'verdict=' + f[3] + ' value=' + f[2];
+      rank = f[1] === 'cognito-auth' ? 1 : (f[3] === 'DIFF' || f[3] === 'MISSING') ? 2 : 3; }
+    else if (/^PROBE summary /.test(l)) { ctx = 'codemagic/s1/99-summary'; desc = l.slice('PROBE summary '.length); rank = 0; }
     else return;
     desc = scrub(desc);
     const P = 140, MAXP = 6; const pieces = [];
@@ -70,8 +71,12 @@ function main() {
         pieces[MAXP - 1] = tail; }
     }
     pieces.forEach((d, k) => { const c = pieces.length === 1 ? ctx : ctx + '-' + String.fromCharCode(97 + k);
-      if (left(d)) { held++; return; } jobs.push({ c, d }); });
+      if (left(d)) { held++; return; } jobs.push({ c, d, rank }); });
   });
+
+
+
+  jobs.sort((a, b) => a.rank - b.rank);
 
   let i = 0;
   const send = async (j) => { const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 20000);
