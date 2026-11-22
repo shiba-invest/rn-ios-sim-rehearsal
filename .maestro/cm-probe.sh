@@ -81,4 +81,10 @@ else fact gh-status "skipped=tag-not-cm-stage1 (no status written)" "http=201"; 
 
 M=$(grep -c 'verdict=MATCH' "$F" || true); D=$(grep -c 'verdict=DIFF' "$F" || true); X=$(grep -c 'verdict=MISSING' "$F" || true)
 echo "PROBE summary match=$M diff=$D missing=$X seconds=$(( $(date +%s) - T0 ))" | tee -a "$F"
+
+
+
+
+
+GH_STATUS_TOKEN="$GHT" limf 70 node .maestro/cm-facts-status.js "$F" 2>&1 | tee "$P/facts-status.txt" || true
 exit 0
