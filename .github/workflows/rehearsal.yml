@@ -1,4 +1,5 @@
 name: rehearsal
+run-name: rehearsal ${{ inputs.tag || github.event_name }}
 
 on:
   push:
@@ -17,13 +18,19 @@ on:
         default: none
         type: choice
         options: [none, A, B]
+      tag:
+        description: "label to find this run (record only)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
 
-# One run at a time; a new run waits instead of cancelling the one in progress.
+# Each run is its own group (never cancelled by another run). How many run side by side is held to the
+# official limit (5 macOS jobs at a time) by the dispatcher, which counts queued and running runs first.
 concurrency:
-  group: rehearsal
+  group: rehearsal-${{ github.run_id }}
   cancel-in-progress: false
 
 # Step order and limits follow a mirrored stage-2 layout: Gate a, updates off, npm ci, prebuild, pods,
