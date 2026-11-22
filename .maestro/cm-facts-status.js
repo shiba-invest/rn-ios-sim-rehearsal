@@ -9,12 +9,14 @@
 
 
 
+
+
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const out = (s) => console.log('facts-status ' + s);
-const codes = {}; const jobs = []; let held = 0;
-const counts = () => { const ok = codes['201'] || 0; const other = Object.entries(codes).filter(([k]) => k !== '201').map(([k, n]) => k + 'x' + n).join(',') || 'none'; return `statuses=${jobs.length} http201=${ok} other=${other} not-sent-secret-left=${held}`; };
+const codes = {}; const jobs = []; let held = 0; let retried = 0; let RFW = 'none';
+const counts = () => { const ok = codes['201'] || 0; const other = Object.entries(codes).filter(([k]) => k !== '201').map(([k, n]) => k + 'x' + n).join(',') || 'none'; return `statuses=${jobs.length} http201=${ok} other=${other} retried=${retried} not-sent-secret-left=${held} repo-from=${RFW}`; };
 const hard = setTimeout(() => { out(counts() + ' stopped=60s-total'); process.exit(0); }, 60000);
 const done = () => { clearTimeout(hard); process.exit(0); };
 try { main(); } catch (e) { out('error=' + String(e && e.name || 'Error').replace(/[^A-Za-z_]/g, '')); done(); }
@@ -22,12 +24,13 @@ try { main(); } catch (e) { out('error=' + String(e && e.name || 'Error').replac
 function main() {
   const file = process.argv[2];
   const TOKEN = process.env.GH_STATUS_TOKEN || '';
-  const REPO = process.env.CM_REPO_SLUG || '';
+  const { repo: REPO, from: RF } = require('./cm-repo.js').repoSlug();
   let SHA = process.env.CM_COMMIT || '';
   try { SHA = SHA || execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch (e) { SHA = ''; }
   if (!/^cm-stage1-/.test(process.env.CM_TAG || '')) { out('skipped=tag-not-cm-stage1'); return done(); }
   if (!TOKEN) { out('skipped=token-missing'); return done(); }
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(REPO)) { out('skipped=no-repo'); return done(); }
+  RFW = RF;
+  if (!REPO) { out('skipped=no-repo repo-from=none'); return done(); }
   if (!/^[0-9a-f]{40}$/.test(SHA)) { out('skipped=no-commit'); return done(); }
   if (!file || !fs.existsSync(file)) { out('skipped=no-facts-file'); return done(); }
 
@@ -43,8 +46,11 @@ function main() {
   let mark = '';
   try { mark = (fs.readFileSync(path.join(__dirname, 'cm-pool.txt'), 'utf8').match(/^dev-pool-mark (\S+)\s*$/m) || [])[1] || ''; } catch (e) { mark = ''; }
   const poolRe = /ap-northeast-1_[A-Za-z0-9]+/g;
-  const scrub = (s) => { let t = s; for (const x of forms) t = t.split(x).join('***'); if (idRe) t = t.replace(idRe, '***'); t = t.replace(poolRe, '***'); if (mark) t = t.split(mark).join('***'); return t; };
-  const left = (s) => forms.some((x) => s.includes(x)) || (idRe ? (s.match(idRe) || []).length > 0 : false) || (mark && s.includes(mark)) || /ap-northeast-1_[A-Za-z0-9]+/.test(s);
+
+
+
+  const scrub = (s) => { let t = s.replace(poolRe, '***'); if (mark) t = t.split(mark).join('***'); for (const x of forms) t = t.split(x).join('***'); if (idRe) t = t.replace(idRe, '***'); return t; };
+  const left = (s) => /ap-northeast-1_[A-Za-z0-9]+/.test(s) || /ap-northeast-\S{0,8}_[A-Za-z0-9]{4,}/.test(s) || (mark && s.includes(mark)) || forms.some((x) => s.includes(x)) || (idRe ? (s.match(idRe) || []).length > 0 : false);
 
 
   const L = fs.readFileSync(file, 'utf8').split('\n').map((l) => l.replace(/\r$/, ''));
@@ -68,7 +74,7 @@ function main() {
   });
 
   let i = 0;
-  const one = async (j) => { const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 20000);
+  const send = async (j) => { const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 20000);
     let k;
     try {
       const r = await fetch(`https://api.github.com/repos/${REPO}/statuses/${SHA}`, { method: 'POST', signal: ac.signal,
@@ -77,9 +83,12 @@ function main() {
       k = String(r.status);
     } catch (e) { k = e && e.name === 'AbortError' ? 'timeout20s' : '000'; }
     finally { clearTimeout(t); }
+    return k; };
+  const one = async (j) => { let k = await send(j);
+    if (k !== '201') { retried++; await new Promise((r) => setTimeout(r, 2000)); k = await send(j); }
     codes[k] = (codes[k] || 0) + 1; };
   const worker = async () => { while (i < jobs.length) { const j = jobs[i++]; await one(j); } };
-  Promise.all(Array.from({ length: Math.min(6, jobs.length) }, worker)).then(() => {
+  Promise.all(Array.from({ length: Math.min(2, jobs.length) }, worker)).then(() => {
     out(counts()); done();
   }, () => { out('error=send'); done(); });
 }
