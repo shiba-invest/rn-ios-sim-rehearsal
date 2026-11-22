@@ -23,7 +23,7 @@ const msgKind = (m) => { const s = String(m || '');
     : /disabled/i.test(s) ? 'user-disabled' : /not exist/i.test(s) ? 'no-such-user' : s ? 'other' : 'none'; };
 const ws = (v) => (typeof v === 'string' && v !== v.trim() ? 'yes' : 'no');
 const listOut = process.argv[2] || '';
-const putGohan = (s) => { if (listOut) { try { require('fs').writeFileSync(listOut, 'list-data ' + s + '\n'); } catch (e) { /* stage 1 only records */ } } };
+const putList = (s) => { if (listOut) { try { require('fs').writeFileSync(listOut, 'list-data ' + s + '\n'); } catch (e) { /* stage 1 only records */ } } };
 
 
 
@@ -37,7 +37,7 @@ const putGohan = (s) => { if (listOut) { try { require('fs').writeFileSync(listO
 async function listData(tok) {
   const g0 = Date.now();
   const reads = []; const w = { role: 'unread', homes: 'unread', contract: 'unread', inc: 'unread', hit: 'unread' };
-  const line = () => putGohan(`role=${w.role} homes=${w.homes} contract=${w.contract} first-in-contract=${w.inc} first-hit-month-offset=${w.hit} reads=${!reads.length ? 'none' : reads.every((x) => /:200(x7)?$/.test(x)) ? 'ok' : reads.join(',')} ms=${Date.now() - g0}`);
+  const line = () => putList(`role=${w.role} homes=${w.homes} contract=${w.contract} first-in-contract=${w.inc} first-hit-month-offset=${w.hit} reads=${!reads.length ? 'none' : reads.every((x) => /:200(x7)?$/.test(x)) ? 'ok' : reads.join(',')} ms=${Date.now() - g0}`);
   const base = { core: env.EXPO_PUBLIC_API_BASE_URL, kaimono: env.EXPO_PUBLIC_KAIMONO_API_BASE_URL, meal: env.EXPO_PUBLIC_MEAL_API_BASE_URL };
   let prodMarks = [];
   try { prodMarks = require('fs').readFileSync(require('path').join(__dirname, 'cm-values.txt'), 'utf8').split('\n').map((l) => l.match(/^0 (\S+)\s*$/)).filter(Boolean).map((m) => m[1]); } catch (e) { prodMarks = []; }
@@ -77,7 +77,7 @@ async function listData(tok) {
   } finally { clearTimeout(tAll); }
 }
 (async () => {
-  putGohan('skipped=no-sign-in (see cognito-auth)');
+  putList('skipped=no-sign-in (see cognito-auth)');
   if (!mark) { out('skipped=no-dev-pool-mark-in-cm-pool.txt'); return; }
   if (!String(env.EXPO_PUBLIC_USER_POOL_ID || '').includes(mark)) { out('skipped=not-the-dev-pool'); return; }
   if (!id || !pw) { out(`skipped=value-missing id-set=${id ? 'yes' : 'no'} pw-set=${pw ? 'yes' : 'no'}`); return; }
@@ -100,7 +100,7 @@ async function listData(tok) {
       : `error=${String(j.__type || 'none').split('#').pop().replace(/[^A-Za-z]/g, '')} kind=${msgKind(j.message)}`;
     out(`http=${r.status} ${kind} ms=${Date.now() - t0}`);
     const tok = j.AuthenticationResult && j.AuthenticationResult.IdToken; j = null;
-    if (listOut && tok) { clearTimeout(t); try { await listData(tok); } catch (e) { putGohan('error=' + String(e && e.name || 'Error').replace(/[^A-Za-z]/g, '')); } }
+    if (listOut && tok) { clearTimeout(t); try { await listData(tok); } catch (e) { putList('error=' + String(e && e.name || 'Error').replace(/[^A-Za-z]/g, '')); } }
   } catch (e) {
     out(`http=000 error=${e.name === 'AbortError' ? 'Timeout20s' : String(e.cause?.code || e.name).replace(/[^A-Za-z_]/g, '')} ms=${Date.now() - t0}`);
   } finally { clearTimeout(t); }
