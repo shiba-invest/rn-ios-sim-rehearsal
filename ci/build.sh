@@ -1,13 +1,11 @@
 #!/bin/bash
-# Release build for the simulator (arm64 only, no signing). The scheme comes from the workspace listing.
+# Release build for the simulator (arm64 only, no signing). The app scheme has the workspace name; the listing must hold it.
 set -eo pipefail
 . ci/lib.sh
 WS=$(ls -d ios/*.xcworkspace | head -1)
-SCHEME=$(xcodebuild -workspace "$WS" -list -json | node -e '
-  const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
-  const s = (j.workspace.schemes || []).find((x) => !/^Pods|^Expo|^React|^EX|^RN|^hermes|^Yoga|^boost|^glog|^fmt|^Socket|^Sentry/.test(x));
-  process.stdout.write(s || "");
-')
+SCHEME=$(basename "$WS" .xcworkspace)
+xcodebuild -workspace "$WS" -list -json > "$OUT/schemes.json"
+node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).workspace.schemes.includes(process.argv[2])?0:1)' "$OUT/schemes.json" "$SCHEME" || SCHEME=""
 [ -n "$SCHEME" ] || { echo "no app scheme"; exit 16; }
 echo "workspace=$WS scheme=$SCHEME" | tee "$OUT/build-target.txt"
 xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \

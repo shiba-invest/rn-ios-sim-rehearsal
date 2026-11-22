@@ -15,6 +15,11 @@ on:
 permissions:
   contents: read
 
+# One run at a time; a new run waits instead of cancelling the one in progress.
+concurrency:
+  group: rehearsal
+  cancel-in-progress: false
+
 jobs:
   ios-sim:
     runs-on: macos-26
@@ -86,7 +91,7 @@ jobs:
         run: |
           { echo '| step | seconds | rc | cap |'; echo '|---|---|---|---|'
             awk -F'\t' '{print "| "$1" | "$2" | "$3" | "$4" |"}' "$OUT/steps.tsv" 2>/dev/null
-            echo; cat "$OUT/result.txt" 2>/dev/null; } >> "$GITHUB_STEP_SUMMARY"
+            echo; cat "$OUT/result.txt" 2>/dev/null || echo "no result.txt"; } >> "$GITHUB_STEP_SUMMARY"
           cat "$OUT/steps.tsv" 2>/dev/null || true
 
       - name: Pass marker
