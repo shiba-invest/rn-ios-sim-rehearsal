@@ -1,6 +1,7 @@
 #!/bin/bash
 # Practice faults only (not part of the mirrored flow). usage: fault.sh <pre-login|post-enter|pre-retry> <udid>
 # FAULT: a = block the auth host at the login, restore 40 s after the Enter; b = block and never restore;
+# a-look = as a, plus the app log and the screen words before the retry; look = the app log only (control);
 # c-up = as a, plus the keyboard up on the password field before the resubmit; e = plant the practice values in out/.
 P="$1"; UDID="$2"; HOST="cognito-idp.${AUTH_REGION}.amazonaws.com"; BH=192.0.2.1; F="$PWD/out/fault.txt"
 mkdir -p "$PWD/out"; log() { echo "$(date -u +%H:%M:%S) fault=$FAULT $P $*" | tee -a "$F"; }
@@ -11,9 +12,18 @@ block() { sudo sh -c "echo '$BH $HOST' >> /etc/hosts"
   sudo pfctl -E >/dev/null 2>&1 || true; flushdns; log "blocked host-check http=$(check 8)"; }
 unblock() { sudo sed -i '' "/$BH $HOST/d" /etc/hosts; sudo pfctl -a com.apple/rehearsal -F rules >/dev/null 2>&1 || true
   flushdns; log "restored host-check http=$(check 15)"; }
+applog() { xcrun simctl spawn "$UDID" log stream --style compact --level debug --predicate 'eventMessage CONTAINS "[REHEARSAL]"' 2>/dev/null \
+  | sed -l -n 's/^[0-9-]* \([0-9:.]*\).*\(\[REHEARSAL\].*\)/\1 \2/p' > "$PWD/out/iphone/app-log.txt" & log "app log started"; }
+words() { local h w n; h=$(maestro --device "$UDID" hierarchy 2>/dev/null)
+  for w in "ログインできませんでした。通信環境をご確認ください" "ログインできませんでした。もう一度お試しください" "パスワードを確認しています…" "ログイン" "ホーム" "れんしゅう" "職員IDを入力してください" "パスワードを入力してください"; do
+    n=$(printf '%s' "$h" | grep -o "\"$w\"" | wc -l | tr -d ' '); log "screen \"$w\"=$n"; done
+  log "screen keyboard-lines=$(printf '%s' "$h" | grep -ci keyboard)"; }
 case "$FAULT:$P" in
   a:pre-login|b:pre-login|c-up:pre-login) block ;;
-  a:post-enter|c-up:post-enter) ( sleep 40; unblock ) > /dev/null 2>&1 & log "restore in 40 s" ;;
+  a-look:pre-login) mkdir -p out/iphone; applog; block ;;
+  look:pre-login) mkdir -p out/iphone; applog ;;
+  a:post-enter|a-look:post-enter|c-up:post-enter) ( sleep 40; unblock ) > /dev/null 2>&1 & log "restore in 40 s" ;;
+  a-look:pre-retry) words ;;
   c-up:pre-retry) maestro --device "$UDID" test rehearsal/keyboard-up.yaml > /dev/null 2>&1; log "keyboard-up rc=$?" ;;
   e:post-enter)
     mkdir -p out/iphone
