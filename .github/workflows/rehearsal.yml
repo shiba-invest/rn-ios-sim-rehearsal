@@ -96,6 +96,11 @@ jobs:
           printf '#!/bin/bash\nexec %s _1.16.2_ "$@"\n' "$P" > "$HOME/pin-bin/pod"; chmod +x "$HOME/pin-bin/pod"
           echo "$HOME/pin-bin" >> "$GITHUB_PATH"; "$HOME/pin-bin/pod" --version
 
+      - name: Practice only - stage 1 uses the stage 1 head's cm-lim.sh (the repo copy is the stage 2 head's)
+        if: env.STAGE == '1'
+        shell: bash
+        run: cp rehearsal/s1-lim.sh .maestro/cm-lim.sh && cmp rehearsal/s1-lim.sh .maestro/cm-lim.sh && echo "s1 cm-lim.sh in place"
+
       - name: Probe (stage 1, records only, always exit 0)
         if: env.STAGE == '1'
         shell: bash

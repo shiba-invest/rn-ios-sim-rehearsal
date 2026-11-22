@@ -45,7 +45,7 @@ fact curl "$(rd 10 'curl --version | grep -E "^curl [0-9]"')" -
 fact java "$(rd 20 'java -version 2>&1 | grep -E "^(openjdk|java) version"')" 'version "17.'
 
 
-SJ="$P/sims.json"; limf 200 xcrun simctl list devices available -j > "$SJ" 2>/dev/null || true
+SJ="$P/sims.json"; limf 180 xcrun simctl list devices available -j > "$SJ" 2>/dev/null || true
 fact sim-runtimes "$(limf 20 node .maestro/cm-probe-read.js runtimes "$SJ" 2>&1)" "iOS-26-5"
 fact iphone-17-pro-count "$(limf 20 node .maestro/cm-probe-read.js count "$SJ" 2>&1)" "n=1"
 if limf 30 node .maestro/cm-pick.js < "$SJ" > "$P/sims.env" 2>"$P/pick.err"; then
@@ -70,8 +70,14 @@ done
 
 
 if [ "$TAGOK" != ok ]; then fact cognito-auth "skipped=tag-not-cm-stage1 (no sign-in tried)" "result=AuthenticationResult"
-elif [ "$VL" = ok ]; then fact cognito-auth "$(rd 30 'node .maestro/cm-auth.js')" "result=AuthenticationResult"
+elif [ "$VL" = ok ]; then fact cognito-auth "$(rd 60 'node .maestro/cm-auth.js "'"$P"'/list.txt"')" "result=AuthenticationResult"
 else fact cognito-auth "skipped=values-short (no sign-in tried)" "result=AuthenticationResult"; fi
+
+
+
+
+GD=$(sed -n 's/^list-data //p' "$P/list.txt" 2>/dev/null | tr -cd 'A-Za-z0-9=:,/()._ -')
+fact list-data "${GD:-skipped=no-sign-in (see cognito-auth)}" -
 
 if [ "$TAGOK" = ok ]; then fact gh-status "$(GH_STATUS_TOKEN="$GHT" rd 30 'node .maestro/cm-ghstatus.js codemagic/stage1-probe success "stage 1 probe ran (facts in the build log)"')" "http=201"
 else fact gh-status "skipped=tag-not-cm-stage1 (no status written)" "http=201"; fi
