@@ -1,0 +1,9 @@
+appId: dev.rehearsal.sim
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - hideKeyboard:
+          optional: true
+- tapOn: "ログイン"

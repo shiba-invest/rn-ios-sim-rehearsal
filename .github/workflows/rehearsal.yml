@@ -1,0 +1,100 @@
+name: rehearsal
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      fault:
+        description: "none | a | b | c-up | d-cold | d-cap | e"
+        required: true
+        default: none
+        type: choice
+        options: [none, a, b, c-up, d-cold, d-cap, e]
+
+permissions:
+  contents: read
+
+jobs:
+  ios-sim:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      WANT_XCODE: "26.6"
+      WANT_IOS: "26.5"
+      WANT_DEVICE: iPhone 17 Pro
+      WANT_NODE: 24.17.0
+      WANT_MAESTRO: 2.12.1
+      AUTH_REGION: ap-northeast-1
+      # Made-up practice values (no account exists for them).
+      LOGIN_ID: "001"
+      LOGIN_PW: Rh-Practice-9x
+      PLANT_MARKER: REHEARSAL-PLANTED-7Q
+      FAULT: ${{ inputs.fault || 'none' }}
+      OUT: ${{ github.workspace }}/out
+      WITHHELD: ${{ github.workspace }}/withheld
+      LOG_CAP_BYTES: "52428800"
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.17.0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gate a (tools, simulator, memory, network, Maestro, early boot)
+        timeout-minutes: 12
+        run: bash ci/gate-a.sh
+
+      - name: Turn off updates for the CI build
+        run: node -e 'const f="app.json",fs=require("fs"),a=JSON.parse(fs.readFileSync(f));a.expo.updates={...(a.expo.updates||{}),enabled:false};fs.writeFileSync(f,JSON.stringify(a,null,2))'
+
+      - name: npm ci
+        timeout-minutes: 15
+        run: . ci/lib.sh && timed npm-ci 900 npm ci --no-audit --no-fund
+
+      - name: prebuild
+        timeout-minutes: 10
+        run: . ci/lib.sh && timed prebuild 600 npx expo prebuild --platform ios --no-install
+
+      - name: pods
+        timeout-minutes: 20
+        run: . ci/lib.sh && timed pods 1200 bash -c 'cd ios && pod install'
+
+      - name: Release simulator build
+        timeout-minutes: 40
+        run: . ci/lib.sh && timed xcodebuild 2400 bash ci/build.sh
+
+      - name: Gate b (Hermes bundle, positive control, id count)
+        run: bash ci/gate-b.sh
+
+      - name: iPhone run (install, launch, driver, login, wait, one resubmit)
+        timeout-minutes: 25
+        run: bash ci/run.sh
+
+      - name: Secret sweep
+        if: always()
+        run: bash ci/sweep.sh
+
+      - name: Step times
+        if: always()
+        run: |
+          { echo '| step | seconds | rc | cap |'; echo '|---|---|---|---|'
+            awk -F'\t' '{print "| "$1" | "$2" | "$3" | "$4" |"}' "$OUT/steps.tsv" 2>/dev/null
+            echo; cat "$OUT/result.txt" 2>/dev/null; } >> "$GITHUB_STEP_SUMMARY"
+          cat "$OUT/steps.tsv" 2>/dev/null || true
+
+      - name: Pass marker
+        run: echo "REHEARSAL PASS fault=$FAULT"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: out/
+          retention-days: 14

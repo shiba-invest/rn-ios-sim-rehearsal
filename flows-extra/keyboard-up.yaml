@@ -1,0 +1,7 @@
+# Rehearsal only: bring the keyboard up on the password field before the resubmit (fault c-up).
+appId: dev.rehearsal.sim
+---
+- tapOn:
+    id: "loginPw"
+- waitForAnimationToEnd:
+    timeout: 1500
