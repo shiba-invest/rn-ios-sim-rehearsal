@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       fault:
-        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl"
+        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord"
         required: true
         default: none
         type: choice
-        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl]
+        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord]
       gate_only:
         description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
         required: false
@@ -219,12 +219,13 @@ jobs:
           . .maestro/cm-lim.sh step=pods; trap cm_publish EXIT; set -a; . "$CM_FILE_ENV"; set +a
           cd ios && lim 680 pod install 2>&1 | tee ../out/logs/pods.log
 
-      - name: Practice only - fault mid (workspace removed before the build)
+      - name: Practice only - fault mid (workspace removed) or norecord (no record in 7 months, before the build)
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: /bin/bash --noprofile --norc {0}
         run: |
           #!/bin/bash
           if [ "$FAULT" = mid ]; then rm -rf ios/app.xcworkspace; echo "fault mid: ios/app.xcworkspace removed" | tee -a out/fault.txt; fi
+          if [ "$FAULT" = norecord ]; then sed -i '' 's/back >= 1 ?/back >= 99 ?/' app/list.tsx; echo "fault norecord: record hidden n=$(grep -c 'back >= 99' app/list.tsx)" | tee -a out/fault.txt; fi
 
       - name: Build (Release, simulator, arm64)
         if: env.GATE_ONLY == 'none' && env.STAGE == '2'
