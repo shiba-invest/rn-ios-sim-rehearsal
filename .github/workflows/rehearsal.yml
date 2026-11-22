@@ -11,6 +11,12 @@ on:
         default: none
         type: choice
         options: [none, a, b, c-up, d-cold, d-cap, e]
+      gate_only:
+        description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
+        required: false
+        default: none
+        type: choice
+        options: [none, A, B]
 
 permissions:
   contents: read
@@ -39,6 +45,7 @@ jobs:
       E2E_0003_LOGIN: "001"
       E2E_0003_PASSWORD: Rh-Practice-9x
       FAULT: ${{ inputs.fault || 'none' }}
+      GATE_ONLY: ${{ inputs.gate_only || 'none' }}
       FAULT_HOOK: ${{ inputs.fault && inputs.fault != 'none' && 'rehearsal/fault.sh' || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +65,7 @@ jobs:
           echo "$HOME/pin-bin" >> "$GITHUB_PATH"; "$HOME/pin-bin/pod" --version
 
       - name: Gate a - toolchain, simulator, Maestro, network (first minutes)
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           set -eo pipefail
@@ -77,7 +85,27 @@ jobs:
           [ "$MVS" = "$MAESTRO_VERSION" ] || { echo "GATE a FAIL: maestro [$MVS], expected exactly $MAESTRO_VERSION"; exit 1; }
           echo "GATE a ok"
 
+      - name: Gate a measurement (A = network then boot, B = boot then network)
+        if: env.GATE_ONLY != 'none'
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p out/logs; : > "$CM_FILE_ENV"; M=out/logs/gate-measure.txt
+          . .maestro/cm-lim.sh; trap cm_publish EXIT
+          t() { date +%s; }
+          echo "form=$GATE_ONLY runner=$RUNNER_NAME image=$ImageVersion start=$(date -u +%H:%M:%SZ)" | tee "$M"
+          s=$(t); lim 90 bash .maestro/cm-gates.sh toolchain > out/logs/a-toolchain.log 2>&1; echo "toolchain rc=$? s=$(( $(t)-s ))" | tee -a "$M"
+          IPHONE_UDID=$(sed -n 's/^IPHONE_UDID=//p' out/sims.env)
+          boot() { s=$(t); lim 60 xcrun simctl boot "$IPHONE_UDID" > out/logs/a-boot.log 2>&1; echo "boot-cmd rc=$? s=$(( $(t)-s ))" | tee -a "$M"; BOOT_AT=$(t); }
+          net() { s=$(t); lim 120 bash .maestro/netcheck.sh out/logs/a-net.txt "form-$GATE_ONLY" > /dev/null 2>&1; echo "netcheck rc=$? s=$(( $(t)-s )) $(tail -1 out/logs/a-net.txt 2>/dev/null)" | tee -a "$M"
+            s=$(t); lim 400 bash -c 'set -o pipefail; curl -fsSL "https://get.maestro.mobile.dev" | bash' > out/logs/maestro-install.log 2>&1; echo "maestro-install rc=$? s=$(( $(t)-s ))" | tee -a "$M"; }
+          if [ "$GATE_ONLY" = A ]; then net; boot; else boot; net; fi
+          lim 480 xcrun simctl bootstatus "$IPHONE_UDID" -b > /dev/null 2>&1; echo "booted rc=$? s-from-boot-cmd=$(( $(t)-BOOT_AT ))" | tee -a "$M"
+          echo "memory-after free_mb=$(( $(vm_stat | awk '/Pages free|Pages inactive|Pages speculative/ {gsub(/[.]/,"",$NF); s+=$NF} END {print s+0}') * $(sysctl -n hw.pagesize) / 1048576 )) load=$(sysctl -n vm.loadavg)" | tee -a "$M"
+          cat "$M" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Disable expo-updates on this build copy (no OTA fetch)
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           set -eo pipefail
@@ -85,6 +113,7 @@ jobs:
           lim 60 node -e "const f='app.json';const a=require('./'+f);a.expo.updates={...a.expo.updates,enabled:false};require('fs').writeFileSync(f,JSON.stringify(a,null,2))"
 
       - name: npm ci
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           set -eo pipefail
@@ -92,6 +121,7 @@ jobs:
           lim 300 npm ci 2>&1 | tee out/logs/npm-ci.log
 
       - name: Prebuild iOS
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           set -eo pipefail
@@ -99,6 +129,7 @@ jobs:
           lim 60 npx expo prebuild --platform ios --no-install 2>&1 | tee out/logs/prebuild.log
 
       - name: Pods
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           set -eo pipefail
@@ -106,6 +137,7 @@ jobs:
           cd ios && lim 280 pod install 2>&1 | tee ../out/logs/pods.log
 
       - name: Build (Release, simulator, arm64)
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           set -eo pipefail
@@ -124,6 +156,7 @@ jobs:
           ls -la "$APP" | sed -n 1,10p
 
       - name: Gate b - .app, Hermes, made-up values 1 each, other values 0
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           set -eo pipefail
@@ -131,6 +164,7 @@ jobs:
           lim 60 bash .maestro/cm-gates.sh bundle 2>&1 | tee out/logs/b-bundle.log
 
       - name: iPhone (portrait) - login, home
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           set -eo pipefail
@@ -142,6 +176,7 @@ jobs:
           exit $RC
 
       - name: Pass marker
+        if: env.GATE_ONLY == 'none'
         shell: bash
         run: |
           . .maestro/cm-lim.sh; trap cm_publish EXIT
