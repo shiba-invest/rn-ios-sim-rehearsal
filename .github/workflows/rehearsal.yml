@@ -25,7 +25,7 @@ on:
         type: choice
         options: ["2", "1"]
       cm_tag:
-        description: "stage 1 CM_TAG (not cm-stage1-* = both outside writes skipped)"
+        description: "stage 1 CM_TAG (- = empty; not cm-stage1-* = both outside writes skipped)"
         required: false
         default: "cm-stage1-rehearsal"
         type: string
@@ -88,7 +88,7 @@ jobs:
         if: env.STAGE == '1'
         shell: bash
         env:
-          CM_TAG: ${{ inputs.cm_tag || 'cm-stage1-rehearsal' }}
+          CM_TAG: ${{ inputs.cm_tag != '-' && (inputs.cm_tag || 'cm-stage1-rehearsal') || '' }}
           GH_STATUS_TOKEN: ${{ github.token }}
           CM_REPO_SLUG: ${{ github.repository }}
           CM_COMMIT: ${{ github.sha }}
