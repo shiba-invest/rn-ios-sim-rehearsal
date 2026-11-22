@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       fault:
-        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot | a-look | look"
+        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot | a-look | look | a-enter"
         required: true
         default: none
         type: choice
-        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look]
+        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter]
       gate_only:
         description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
         required: false
@@ -230,7 +230,7 @@ jobs:
         run: |
           #!/bin/bash
           if [ "$FAULT" = mid ]; then rm -rf ios/app.xcworkspace; echo "fault mid: ios/app.xcworkspace removed" | tee -a out/fault.txt; fi
-          case "$FAULT" in a-look|look) sed -i '' 's/console\.log(`\[REHEARSAL\]/console.error(`[REHEARSAL]/; s/console\.log('"'"'\[REHEARSAL\]/console.error('"'"'[REHEARSAL]/' app/index.tsx src/auth.ts; echo "fault $FAULT: app log lines to the error level n=$(cat app/index.tsx src/auth.ts | grep -c 'console.error(.\[REHEARSAL\]')" | tee -a out/fault.txt;; esac
+          case "$FAULT" in a-look|look|a-enter) sed -i '' 's/console\.log(`\[REHEARSAL\]/console.error(`[REHEARSAL]/; s/console\.log('"'"'\[REHEARSAL\]/console.error('"'"'[REHEARSAL]/' app/index.tsx src/auth.ts; echo "fault $FAULT: app log lines to the error level n=$(cat app/index.tsx src/auth.ts | grep -c 'console.error(.\[REHEARSAL\]')" | tee -a out/fault.txt;; esac
           if [ "$FAULT" = norecord ]; then sed -i '' 's/back >= 1 ?/back >= 99 ?/' app/list.tsx; echo "fault norecord: record hidden n=$(grep -c 'back >= 99' app/list.tsx)" | tee -a out/fault.txt; fi
 
       - name: Build (Release, simulator, arm64)
