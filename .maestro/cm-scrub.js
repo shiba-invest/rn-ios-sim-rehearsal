@@ -1,15 +1,27 @@
+
+
+
+
+
+
+
+
+
 const fs = require('fs');
 const path = require('path');
 const [dir, held, countFile] = process.argv.slice(2);
 const pw = process.env.LOGIN_PW || '';
-const id = process.env.LOGIN_ID || '';
+const id0 = process.env.LOGIN_ID || '';
+const id = id0.padStart(3, '0');
+const tok = process.env.GH_STATUS_TOKEN || '';
 if (!dir || !held || !countFile) { console.error('scrub: usage <dir> <withheld> <count file>'); process.exit(1); }
-if (pw.length < 4 || id.length < 3) { console.error('scrub: LOGIN_PW or LOGIN_ID missing or too short to search safely'); process.exit(1); }
+if (pw.length < 4 || id0.length < 1 || id.length < 3) { console.error('scrub: LOGIN_PW or LOGIN_ID missing or too short to search safely'); process.exit(1); }
 if (!fs.existsSync(dir)) { console.log('scrub: no dir'); process.exit(0); }
 const TEXT = /\.(log|txt|json|ya?ml|html|xml|csv|md)$/i;
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const idRe = new RegExp('(?<![0-9.:])' + esc(id) + '(?![0-9])', 'g');
-const forms = [...new Set([pw, JSON.stringify(pw).slice(1, -1)])];
+const idRe = new RegExp('(?<![0-9.:])(?:' + [...new Set([id, id0])].sort((a, b) => b.length - a.length).map(esc).join('|') + ')(?![0-9])', 'g');
+
+const forms = [...new Set([pw, JSON.stringify(pw).slice(1, -1), ...(tok.length >= 8 ? [tok] : [])])];
 const needles = forms.map((s) => Buffer.from(s, 'utf8'));
 const countPw = (buf) => { let n = 0; for (const nd of needles) { let i = 0; while ((i = buf.indexOf(nd, i)) >= 0) { n++; i += nd.length; } } return n; };
 const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {

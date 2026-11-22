@@ -1,0 +1,2 @@
+1 ap-northeast-1_FAKEPOOL0
+1 fakeclient0000000000000000

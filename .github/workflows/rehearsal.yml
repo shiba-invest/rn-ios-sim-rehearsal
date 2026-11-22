@@ -18,6 +18,12 @@ on:
         default: none
         type: choice
         options: [none, A, B]
+      stage:
+        description: "2 = whole run | 1 = stage 1 only (machine, network, one sign-in, one status)"
+        required: false
+        default: "2"
+        type: choice
+        options: ["2", "1"]
       tag:
         description: "label to find this run (record only)"
         required: false
@@ -26,6 +32,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 # Each run is its own group (never cancelled by another run). How many run side by side is held to the
 # official limit (5 macOS jobs at a time) by the dispatcher, which counts queued and running runs first.
@@ -53,6 +60,7 @@ jobs:
       E2E_0003_PASSWORD: Rh-Practice-9x
       FAULT: ${{ inputs.fault || 'none' }}
       GATE_ONLY: ${{ inputs.gate_only || 'none' }}
+      STAGE: ${{ inputs.stage || '2' }}
       FAULT_HOOK: ${{ inputs.fault && inputs.fault != 'none' && 'rehearsal/fault.sh' || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -71,8 +79,22 @@ jobs:
           printf '#!/bin/bash\nexec %s _1.16.2_ "$@"\n' "$P" > "$HOME/pin-bin/pod"; chmod +x "$HOME/pin-bin/pod"
           echo "$HOME/pin-bin" >> "$GITHUB_PATH"; "$HOME/pin-bin/pod" --version
 
+      - name: Probe (stage 1, records only, always exit 0)
+        if: env.STAGE == '1'
+        shell: bash
+        env:
+          CM_TAG: cm-stage1-rehearsal
+          GH_STATUS_TOKEN: ${{ github.token }}
+          CM_REPO_SLUG: ${{ github.repository }}
+          CM_COMMIT: ${{ github.sha }}
+        run: |
+          #!/bin/bash
+          . .maestro/cm-lim.sh step=probe; trap cm_publish EXIT
+          bash .maestro/cm-probe.sh 2>&1 | tee out/probe-console.log || true
+          exit 0
+
       - name: Gate a - toolchain, simulator, Maestro, network (first minutes)
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -eo pipefail
@@ -93,7 +115,7 @@ jobs:
           echo "GATE a ok"
 
       - name: Gate a measurement (A = network then boot, B = boot then network)
-        if: env.GATE_ONLY != 'none'
+        if: env.GATE_ONLY != 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -o pipefail
@@ -112,7 +134,7 @@ jobs:
           cat "$M" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Disable expo-updates on this build copy (no OTA fetch)
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -eo pipefail
@@ -120,7 +142,7 @@ jobs:
           lim 60 node -e "const f='app.json';const a=require('./'+f);a.expo.updates={...a.expo.updates,enabled:false};require('fs').writeFileSync(f,JSON.stringify(a,null,2))"
 
       - name: npm ci
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -eo pipefail
@@ -128,7 +150,7 @@ jobs:
           lim 300 npm ci 2>&1 | tee out/logs/npm-ci.log
 
       - name: Prebuild iOS
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -eo pipefail
@@ -136,7 +158,7 @@ jobs:
           lim 60 npx expo prebuild --platform ios --no-install 2>&1 | tee out/logs/prebuild.log
 
       - name: Pods
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -eo pipefail
@@ -144,7 +166,7 @@ jobs:
           cd ios && lim 280 pod install 2>&1 | tee ../out/logs/pods.log
 
       - name: Build (Release, simulator, arm64)
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -eo pipefail
@@ -163,7 +185,7 @@ jobs:
           ls -la "$APP" | sed -n 1,10p
 
       - name: Gate b - .app, Hermes, made-up values 1 each, other values 0
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -eo pipefail
@@ -171,7 +193,7 @@ jobs:
           lim 60 bash .maestro/cm-gates.sh bundle 2>&1 | tee out/logs/b-bundle.log
 
       - name: iPhone (portrait) - login, home
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           set -eo pipefail
@@ -183,7 +205,7 @@ jobs:
           exit $RC
 
       - name: Pass marker
-        if: env.GATE_ONLY == 'none'
+        if: env.GATE_ONLY == 'none' && env.STAGE == '2'
         shell: bash
         run: |
           . .maestro/cm-lim.sh; trap cm_publish EXIT
