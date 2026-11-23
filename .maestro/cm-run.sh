@@ -59,6 +59,11 @@ say "boot"
 lim 140 xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
 lim 1310 xcrun simctl bootstatus "$UDID" -b >/dev/null || { r=$?; note "GATE boot: not booted (rc $r; 142 = over the limit)"; exit 1; }
 [ -n "$APP" ] && [ -d "$APP" ] || { note "GATE install: no .app (APP_PATH unset or not a folder)"; exit 1; }
+if [ "${PWAF:-0}" = 1 ]; then i=0 # practice only (Maestro known-issues, E section 29): password AutoFill off in the two plists, no SpringBoard restart
+  for p in "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data/Library/UserConfigurationProfiles/EffectiveUserSettings.plist" "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data/Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist"; do i=$((i + 1))
+    if [ -f "$p" ]; then b=$(plutil -extract restrictedBool.allowPasswordAutoFill.value raw "$p" 2>/dev/null || echo none); r=0; plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO "$p" 2>/dev/null || r=$?
+      note "pwaf plist$i present=1 before=$b rc=$r after=$(plutil -extract restrictedBool.allowPasswordAutoFill.value raw "$p" 2>/dev/null || echo none)"
+    else note "pwaf plist$i present=0 (left as is, run goes on)"; fi; done; fi
 lim 300 xcrun simctl install "$UDID" "$APP" || { r=$?; note "GATE install: failed (rc $r; 142 = over the limit)"; exit 1; }
 
 start_rec() { [ -z "$REC" ] || return 0
@@ -89,12 +94,21 @@ zs_clean() { # E section 27: runner only, this UDID's xcodebuild only, wait for 
   limf 15 pkill -f "xcodebuild test-without-building.*$UDID" >/dev/null 2>&1 || true
   while [ $i -lt 10 ] && lsof -nP -iTCP:22087 -sTCP:LISTEN >/dev/null 2>&1; do sleep 1; i=$((i + 1)); done
   note "zero-step clean done waited=${i}s port22087-listen=$(lsof -nP -iTCP:22087 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN)"; }
+evid() { # <name>: after a failed maestro run: hierarchy line count and fixed alert words (counts only, the text stays outside out/), runner log tail class names
+  local n="$1" h="$RAW/ev-$1.txt" r=0 w o="" rl rc
+  lim 200 maestro --device "$UDID" hierarchy --compact > "$h" 2>&1 < /dev/null || r=$?
+  for w in SpringBoard Alert Password "Not Now" "Save Password" Compromised "Security Recommendations" パスワード 今はしない 保存 漏えい ホーム ログイン; do o="$o $(echo "$w" | tr -d ' ')=$(grep -c -F "$w" "$h")"; done
+  rl=$(find "$RAW/m-$n" "$HOME/.maestro/tests" -name 'xctest_runner*.log' -newer "$CM_ROOT/out/t0" 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+  [ -n "$rl" ] && rc=$(tail -200 "$rl" | grep -o -E '\b[A-Z][A-Za-z]*(Exception|Error|Timeout|Failure|Unreachable)\b' | awk '!s[$0]++' | head -3 | tr '
+' ',')
+  note "evidence $n hierarchy-rc=$r lines=$(grep -c . "$h")$o runner-log=$([ -n "$rl" ] && echo found || echo none) runner-classes=${rc:-none}"; }
 mt() { # <name> <flow> [-e ...]: one maestro test, debug output outside out/; returns its rc
   local n="$1" f="$2"; shift 2; local r=0
   memlog "before $n"; portlog "before $n"
   lim "${MT_LIMIT:-300}" maestro --device "$UDID" test --test-output-dir "$RAW/m-$n" -e ORIENT="$O" "$@" ".maestro/$f" > "$RAW/m-$n.console" 2>&1 < /dev/null || r=$?
   memlog "after $n rc=$r"; portlog "after $n rc=$r"
   note "flow $n rc=$r (142 = over the limit) at $(date -u +%H:%M:%S)"
+  if [ "$r" -ne 0 ] || grep -q -E '\b[A-Z][A-Za-z]*(Exception|Failure)\b' "$RAW/m-$n.console" 2>/dev/null; then evid "$n"; fi
   return "$r"
 }
 shots() { # D3 <tag>
@@ -128,7 +142,7 @@ FLOWS=.maestro/cm-flows.txt
 if [ "${DRV_ONLY:-0}" = 1 ]; then # practice only: the driver piece alone (boot above -> hierarchy --compact x2 -> shutdown)
   for i in 1 2; do [ "$i" = 1 ] && DT="${DRV_T1:-993000}" || DT="${DRV_T2:-540000}"; s=$(date +%s); r=0; portlog "before drv $i"
     MAESTRO_DRIVER_STARTUP_TIMEOUT="$DT" lim 1300 maestro --device "$UDID" hierarchy --compact > "$RAW/drv-$i.txt" 2>&1 < /dev/null || r=$?
-    k=$(grep -o -E '[A-Z][A-Za-z]*(Exception|Error|Timeout|Failure|Unreachable)' "$RAW/drv-$i.txt" | awk '!s[$0]++' | head -3 | tr '
+    k=$(grep -o -E '\b[A-Z][A-Za-z]*(Exception|Error|Timeout|Failure|Unreachable)\b' "$RAW/drv-$i.txt" | awk '!s[$0]++' | head -3 | tr '
 ' ',')
     note "drv $i startup-timeout-ms=$DT s=$(( $(date +%s) - s )) rc=$r class=${k:-none} lines=$(grep -c . "$RAW/drv-$i.txt")"; portlog "after drv $i rc=$r"; done
   r=0; limf 60 xcrun simctl shutdown "$UDID" || r=$?; note "drv shutdown rc=$r"; say "drv done"; exit 0; fi

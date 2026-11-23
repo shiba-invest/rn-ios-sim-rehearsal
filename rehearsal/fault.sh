@@ -52,7 +52,7 @@ case "$FAULT:$P" in
   zs-hold:pre-login|zs-hold-noclean:pre-login) mkdir -p out/iphone; stepwatch; applog ;;
   zs-hold:pre-home|zs-hold-noclean:pre-home) hold ;;
   dst993:pre-login) mkdir -p out/iphone; stepwatch; applog ;;
-  look:pre-login|look-old:pre-login) mkdir -p out/iphone; stepwatch; applog; syslog ;;
+  look:pre-login|look-old:pre-login|pwaf:pre-login|pwaf-ctl:pre-login) mkdir -p out/iphone; stepwatch; applog; syslog ;;
   a:post-enter|a-look:post-enter|a-enter:post-enter|c-up:post-enter) ( sleep 40; unblock ) > /dev/null 2>&1 & log "restore in 40 s" ;;
   a-look:pre-retry) words ;;
   a-enter:pre-retry) words; printf '%s
