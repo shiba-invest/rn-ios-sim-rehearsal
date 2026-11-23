@@ -13,6 +13,7 @@
 
 
 
+
 set -u
 P="$1"; R="$HOME/cm-probe-raw"; mkdir -p "$R"
 . "$(dirname "$0")/cm-lim.sh"
@@ -55,9 +56,12 @@ to() { case "$1" in rc=142\ *|rc=skip\ *|*Timeout*) return 0;; esac; return 1; }
 S="cold=fail warm=not-run"; v1=$(hier driver-cold 1100 993); fact driver-cold "$v1" "rc=0"
 case "$v1" in
   rc=0\ *) v=$(hier driver-warm 640 540); fact driver-warm "$v" "rc=0"; case "$v" in rc=0\ *) S="cold=ok warm=ok";; *) S="cold=ok warm=fail";; esac;;
-  *) clean; v2=$(hier driver-cold-again 1100 993); fact driver-cold-again "$v2" "rc=0"
+  *) # commander 2026-11-23: the clean-up 70 + a cold-again with a start wait >= 60 (167 left) need 237 s before E; fewer
+
+    if [ "$(left 237)" -lt 237 ]; then case "$v1" in rc=skip\ *) S="cold=no-time warm=not-run";; esac; fact driver-start no-time -
+    else clean; v2=$(hier driver-cold-again 1100 993); fact driver-cold-again "$v2" "rc=0"
     case "$v2" in rc=0\ *) S="cold=rescued warm=not-run"; fact driver-rescued "cold-again passed after the clean-up (counted apart from a pass; warm not measured)" -;;
-      *) d=fail-x2; if to "$v1" && to "$v2"; then d=timeout-x2; fi; fact driver-start "$d" -;; esac;;
+      *) d=fail-x2; if to "$v1" && to "$v2"; then d=timeout-x2; fi; fact driver-start "$d" -;; esac; fi;;
 esac
 limf 30 xcrun simctl shutdown "$U" >/dev/null 2>&1; fact driver-shutdown "rc=$?" "rc=0"
 fact driver "$S" "cold=ok warm=ok"
