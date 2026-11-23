@@ -1,0 +1,17 @@
+
+
+gates-toolchain	no xcodebuild	xcode
+gates-toolchain	not exactly one Xcode version line	xcode
+gates-toolchain	Xcode is not 26.6	xcode
+gates-toolchain	node is not v24.17.0	node
+gates-toolchain	no pod	pod
+gates-toolchain	pod is not 1.16.2	pod
+gates-toolchain	java is not 17	java
+gates-toolchain	simctl list failed	sim-runtimes
+gates-toolchain	no single available iPhone 17 Pro on iOS 26.5	sim-pick
+yaml-a	Cognito unreachable from the Mac	cognito-post
+yaml-a	maestro zip with the pinned sha256 not downloaded in 2 attempts	reach-github.com
+yaml-a	maestro [$MVS], expected exactly $MAESTRO_VERSION	pinned:the zip bytes are fixed by MAESTRO_ZIP_SHA256, so its version cannot differ from the pin
+gates-toolchain	CM_FILE_ENV not set	pinned:a yaml environment value (CM_FILE_ENV out/cm.env), not a machine fact
+yaml-a	CM_TAG is not cm-stage2-*	tag
+yaml-a	driver-start-s is not filled in .maestro/cm-limits.txt (the commander writes it from the stage 1 driver-cold fact; stage 2 never runs on a placeholder)	pinned:read first by the stage 1 driver piece (cm-probe-driver.sh, called from cm-probe.sh section 8: FACT driver-cold); the commander writes the row from that fact

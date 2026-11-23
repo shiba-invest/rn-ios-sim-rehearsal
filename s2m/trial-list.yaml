@@ -1,0 +1,111 @@
+
+
+
+
+appId: dev.rehearsal.sim
+---
+
+
+
+- tapOn:
+    text: "ホーム"
+    index: 1
+    optional: true
+    label: cm-list-tile-2nd
+- extendedWaitUntil:
+    visible: "記録の一覧"
+    timeout: 20000
+    optional: true
+    label: cm-list-after-2nd
+- runFlow:
+    when:
+      notVisible: "記録の一覧"
+    commands:
+      - tapOn:
+          text: "ホーム"
+          index: 0
+          label: cm-list-tile-1st
+      - extendedWaitUntil:
+          visible: "記録の一覧"
+          timeout: 60000
+          optional: true
+          label: cm-list-after-1st
+      - runFlow:
+          when:
+            notVisible: "記録の一覧"
+          commands:
+            - tapOn:
+                text: "ホーム"
+                index: 0
+                label: cm-list-tile-retake
+- extendedWaitUntil:
+    visible: "記録の一覧"
+    timeout: 60000
+    label: cm-list
+- waitForAnimationToEnd
+- takeScreenshot: 03-list-top
+- tapOn:
+    text: "記録の一覧"
+    label: cm-records-tap
+- extendedWaitUntil:
+    visible: "月をえらぶ"
+    timeout: 60000
+    optional: true
+    label: cm-list-after-tap
+- runFlow:
+    when:
+      notVisible: "月をえらぶ"
+    commands:
+      - tapOn:
+          text: "記録の一覧"
+          label: cm-records-retake
+- extendedWaitUntil:
+    visible: "月をえらぶ"
+    timeout: 60000
+    label: cm-list
+- waitForAnimationToEnd
+- takeScreenshot: 04-list
+- repeat:
+    times: 6
+    while:
+      notVisible: ".*の記録（画像.*枚）を開く"
+    commands:
+      - tapOn: "前の月"   # lint-ok:screen-press-checked the repeat while (record shown) and the marked shot after it are the check
+      - waitForAnimationToEnd
+
+
+
+- runFlow:
+    when:
+      notVisible: ".*の記録（画像.*枚）を開く"
+    commands:
+      - takeScreenshot: 05-no-record-7-months
+- takeScreenshot: 05-list-with-record
+
+
+- assertNotVisible:
+    text: "閉じる"
+    label: cm-no-close-before
+- tapOn:
+    text: ".*の記録（画像.*枚）を開く"
+    label: cm-record-tap
+
+
+- extendedWaitUntil:
+    visible: "閉じる"
+    timeout: 20000
+    optional: true
+    label: cm-viewer-after-tap
+- runFlow:
+    when:
+      notVisible: "閉じる"
+    commands:
+      - tapOn:
+          text: ".*の記録（画像.*枚）を開く"
+          label: cm-record-retake
+- extendedWaitUntil:
+    visible: "閉じる"
+    timeout: 20000
+    label: cm-record-viewer
+- waitForAnimationToEnd
+- takeScreenshot: 06-record-open

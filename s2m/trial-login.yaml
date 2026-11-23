@@ -1,0 +1,75 @@
+
+
+
+
+
+appId: dev.rehearsal.sim
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible: "れんしゅう"
+    timeout: 90000
+    label: cm-app-open
+- waitForAnimationToEnd
+
+
+- extendedWaitUntil:
+    visible: "ID・パスワードでログイン|例: 001"
+    timeout: 30000
+    label: cm-mode-or-form
+- runFlow:
+    when:
+      visible: "ID・パスワードでログイン"
+    commands:
+      - takeScreenshot: 00-mode
+      - tapOn: "ID・パスワードでログイン"
+      - extendedWaitUntil:
+          visible: "例: 001"
+          timeout: 30000
+          optional: true
+          label: cm-form-after-mode
+      - runFlow:
+          when:
+            notVisible: "例: 001"
+          commands:
+            - tapOn:
+                text: "ID・パスワードでログイン"
+                label: cm-mode-retake
+- extendedWaitUntil:
+    visible: "例: 001"
+    timeout: 30000
+    label: cm-form
+- runFlow:
+    when:
+      true: ${ORIENT == "LANDSCAPE"}
+    commands:
+      - setOrientation: LANDSCAPE_LEFT
+      - waitForAnimationToEnd
+- takeScreenshot: 01-login
+- tapOn: "例: 001"
+- inputText: ${LOGIN_ID}
+- tapOn:
+    text: "パスワード"
+    index: 1
+- inputText: ${LOGIN_PW}
+- pressKey: Enter
+
+
+
+- extendedWaitUntil:
+    visible: "ホーム|パスワードを確認しています…|⚠"
+    timeout: 15000
+    optional: true
+    label: cm-submit-seen
+- runFlow:
+    when:
+      notVisible: "ホーム|パスワードを確認しています…|⚠"
+      visible: "例: 001"
+    commands:
+      - tapOn:
+          text: "•+"
+          label: cm-submit-retake-field
+      - pressKey: Enter   # lint-ok:screen-press-checked cm-run.sh runs trial-home.yaml next (waits for the home)

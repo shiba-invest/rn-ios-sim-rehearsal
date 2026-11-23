@@ -1,0 +1,121 @@
+
+
+
+
+driver-start-s	993	practice mirror only (commander 2026-11-23): GitHub practice cold up to 358 s (B s1z); Codemagic head keeps 300
+driver-stall-s	120	placeholder (B s2h-old2: the class line, then no step until the 610 s cut)
+yaml-a:9	node	30	-	head 2d (commander 2026-11-23): logins blob record (cm-blob.js: one sha256 + one base64url/JSON parse of 2204 chars); local unit run under 1 s; record only, a cut = "did not finish"
+yaml-a:11	node	30	1	B GitHub Actions rehearsal (head 2c copy) fault a run 45066594515: 1 s
+yaml-a:12	bash	250	54	B GitHub Actions rehearsal (head 2c copy) cold run 45063389156: 54 s; before: GitHub run 5 (toolchain 2 + sims 44)
+yaml-a:16	bash	90	1	head 2d (commander 2026-11-23): 90 = 3 x the curl --max-time 30 in netcheck.sh (a 30 s curl in lim 30 is not allowed); before: B GitHub Actions macos-26 run 45022444476 and 5 more, network before the boot: netcheck 0-1 s (boot first: 15-29 s)
+yaml-a:25	curl	300	11	B GitHub Actions macos-26 run 45022444476 and 5 more, before the boot: 8-11 s (boot first: 62-170 s)
+yaml-a:32	unzip	120	4	B GitHub Actions rehearsal (head 2c copy) fault a run 45066594515: 4 s
+yaml-a:35	maestro	30	5	B GitHub Actions rehearsal (head 2c copy) fault a run 45066594515: 5 s
+yaml-env:4	node	210	70	GitHub run 5
+yaml-updates:4	node	90	27	GitHub run 9
+yaml-npm:4	npm	780	257	GitHub run 4
+yaml-prebuild:4	npx	60	12	B GitHub Actions free rehearsal 1 (commander 2026-11-22: prebuild 12 s); head 2c copy 6 runs: up to 4 s
+yaml-pods:4	pod	680	226	GitHub run 8
+yaml-build:9	xcodebuild	120	13	B GitHub Actions rehearsal (head 2c copy) noboot run 45063560225: scheme list 13 s; before: B GitHub Actions free rehearsal 1: 10
+yaml-build:10	node	30	0	B GitHub Actions rehearsal (head 2c copy) 6 runs (8-3): under 1 s
+yaml-build:12	xcodebuild	4170	1389	GitHub run 4
+yaml-b:4	bash	60	8	GitHub run 4
+yaml-status:6	node	60	-	no macOS measurement yet
+yaml-status:10	node	45	-	no macOS measurement yet
+cm-run.sh:46	xcrun	115	38	same command as :78, its max 38 used (B GitHub Actions rehearsal (head 2c copy) cold run 45063389156: 1 s here)
+cm-run.sh:49	avconvert	60	4	B GitHub Actions rehearsal (head 2c copy) cold run 45063389156: 4 s
+cm-run.sh:51	xcrun	30	7	B GitHub Actions rehearsal (head 2c copy) netcut run 45063596270: 7 s (cold run 45063389156: 4)
+cm-run.sh:59	xcrun	140	44	GitHub run 5 (simctl boot)
+cm-run.sh:60	xcrun	1310	435	GitHub run 2 (bootstatus)
+cm-run.sh:62	xcrun	390	129	B GitHub Actions rehearsal (head 2c copy) netcut run 45063596270: install 129 s (3 x 129 = 387; cold run 45063389156: 67); B GitHub Actions 14 runs: install 32-89 s, 4 cut at 60 (66, 78, 85, 89) (B GitHub Actions free rehearsal 3 head 2f8e500: 18)
+cm-run.sh:78	xcrun	115	38	B GitHub Actions rehearsal (head 2c copy) cold run 45063389156: one login shot 38 s (3 x 38 = 114; GitHub Actions 14 runs: up to 28 s)
+cm-run.sh:71	node	30	-	head 2d (commander 2026-11-23): failed-step record (cm-steps.js), only after a failed flow; local unit run under 1 s; lim = cut at the deadline (TIME unchanged)
+cm-run.sh:71	bash	95	-	head 2d (commander 2026-11-23, E section 29): the screen diagnosis after rc != 0 (cm-screen.sh: one hierarchy, driver start wait 60 s, limf 85); lim = cut at the deadline
+cm-screen.sh:14	maestro	85	-	head 2d: one hierarchy for the screen diagnosis, driver start wait 60 s (MAESTRO_DRIVER_STARTUP_TIMEOUT=60000); no macOS measurement yet
+
+cm-run.sh:72	maestro	300	-	head 2d (commander 2026-11-23, B (15) old4 / old2: 318 / 339 s with no step): the zero-step retake of the same flow, once, under the calling flow's own MT_LIMIT (home 610, login 1260, retry 300, list 460; 300 is the mt default the line shows); lim = cut at the deadline (TIME unchanged)
+cm-run.sh:72	bash	70	-	head 2d (commander 2026-11-23, E section 27): the zero-step driver clean-up (cm-driver.sh, fixed limits inside: terminate 30, pkill 10, port wait 10 x (lsof 5 + 1 s), log tail 10); lim = cut at the deadline
+cm-driver.sh:18	xcrun	30	-	head 2d (E section 27): clean-up step xcrun; no macOS measurement yet
+cm-driver.sh:20	pkill	10	-	head 2d (E section 27): clean-up step pkill; no macOS measurement yet
+cm-driver.sh:22	lsof	10	-	head 2d (E section 27): clean-up step lsof; no macOS measurement yet
+cm-driver.sh:25	sleep	10	-	head 2d (E section 27): clean-up step sleep; no macOS measurement yet
+cm-driver.sh:30	tail	10	-	head 2d (E section 27): clean-up step tail; no macOS measurement yet
+cm-driver-diag.sh:33	perl	10	-	head 2e draft (commander 2026-11-23, F6): driver diag after a failed start, counts and class names only; no macOS measurement yet
+cm-driver-diag.sh:42	cat	10	-	head 2e draft (commander 2026-11-23, F6): driver diag after a failed start, counts and class names only; no macOS measurement yet
+cm-driver-diag.sh:21	pgrep	10	-	head 2e draft (commander 2026-11-23, F6): driver diag after a failed start, counts and class names only; no macOS measurement yet
+cm-driver-diag.sh:22	pgrep	10	-	head 2e draft (commander 2026-11-23, F6): driver diag after a failed start, counts and class names only; no macOS measurement yet
+cm-driver-diag.sh:24	lsof	10	-	head 2e draft (commander 2026-11-23, F6): driver diag after a failed start, counts and class names only; no macOS measurement yet
+cm-driver-diag.sh:45	tail	10	-	head 2e draft (commander 2026-11-23, F6): driver diag after a failed start, counts and class names only; no macOS measurement yet
+cm-run.sh:84	maestro	610	203	B GitHub Actions 14 runs: Enter to home up to 203 s with the Maestro CLI start (B GitHub Actions free rehearsal 3 head 2f8e500: 54; head 2c copy 6 runs: up to 166, fault a second Enter 121)
+cm-run.sh:90	maestro	200	65	head 2d (commander 2026-11-23): 200 (rounded up from 3 x 65 = 195; measured 43 / 26 / 65 s in B s2c-a / s2d-aenter / s2d-alook); a 142 is retaken once, twice = GATE screen FAIL; before: B GitHub Actions rehearsal (head 2c copy) netcut run 45063596270: hierarchy 65 s, cut at 60 (rc 142), the net message was missed (3 x 65 = 195)
+cm-run.sh:93	bash	115	37	same netcheck.sh as :99 (B GitHub Actions 14 runs: 37 s, cut at 30)
+cm-run.sh:99	bash	600	37	head 2d: the whole pre-login wait (cm-netwait.sh, commander 2026-11-23: 600 s, cut at the deadline); one netcheck: B GitHub Actions 14 runs: cut at 30 after 37 s; B a-look run 45069836554: http=000 (curl 28)
+cm-netwait.sh:14	bash	115	37	one pre-login netcheck in the wait, same netcheck.sh as cm-run.sh:93 (B GitHub Actions 14 runs: 37 s, cut at 30)
+cm-netwait.sh:17	sleep	30	10	fixed sleep 10 s between the tries (3 x 10 = 30; commander 2026-11-23)
+cm-run.sh:100	maestro	1260	417	B GitHub Actions rehearsal (head 2c copy) norecord run 45063660451: login flow 417 s (3 x 417 = 1251; cold run 45063389156: 246, fault a 45066594515: 202); before: B GitHub Actions 14 runs: login flow up to 393 s (B GitHub Actions free rehearsal 3 head 2f8e500: 250)
+cm-run.sh:105	xcrun	115	38	same command as :78, its max 38 used (measured by fault a later)
+cm-run.sh:106	bash	115	37	same netcheck.sh as :99 (B GitHub Actions 14 runs: 37 s, cut at 30)
+cm-run.sh:107	sleep	90	30	B GitHub Actions rehearsal (head 2c copy) fault a run 45066594515: fixed sleep 30 s (3 x 30 = 90)
+cm-run.sh:109	maestro	400	52	B GitHub Actions rehearsal (head 2c copy) fault a run 45066594515: resubmit flow 52 s; head 2d (commander 2026-11-23): 300 -> 400 (body 100 + the 300 s start wait it was set on); the run uses 400 - 300 + driver-start-s
+cm-run.sh:119	maestro	460	152	B GitHub Actions 14 runs: list list flow up to 152 s (GitHub run 3: 40)
+cm-probe.sh:31	node	30	-	head 2d (commander 2026-11-23): logins blob record in stage 1 (cm-blob.js, as yaml-a:9); local unit run under 1 s; record only
+cm-probe.sh:36	bash	20	-	no macOS measurement yet
+cm-probe.sh:37	bash	30	-	no macOS measurement yet
+cm-probe.sh:38	bash	20	-	no macOS measurement yet
+cm-probe.sh:39	bash	20	-	no macOS measurement yet
+cm-probe.sh:40	bash	20	-	no macOS measurement yet
+cm-probe.sh:41	bash	30	-	no macOS measurement yet
+cm-probe.sh:42	bash	10	-	no macOS measurement yet
+cm-probe.sh:43	bash	10	-	no macOS measurement yet
+cm-probe.sh:44	bash	10	-	no macOS measurement yet
+cm-probe.sh:45	bash	20	-	no macOS measurement yet
+cm-probe.sh:48	xcrun	270	82	B GitHub Actions run 45070526708 (head 1e cold run): the first simctl list 82 s (3 x 82 = 246; 10 runs after it: 4-63 s); before: B GitHub Actions run 45028159737: the first simctl list after the machine woke, cut at 60 s (GitHub run 5: sims 44 s)
+cm-probe.sh:49	node	20	-	no macOS measurement yet
+cm-probe.sh:50	node	20	-	no macOS measurement yet
+cm-probe.sh:51	node	30	-	no macOS measurement yet
+cm-probe.sh:58	bash	20	-	no macOS measurement yet
+cm-probe.sh:62	bash	90	-	head 2d (commander 2026-11-23): 90 = 3 x the curl --max-time 30 in netcheck.sh; before: rd 30, no macOS measurement yet
+netcheck.sh:10	curl	30	7.11	curl --max-time; head 2d (commander 2026-11-23): B gB4 run 45025753773, all= max 7.11 s after the simulator boot (3 x = 21.33 > the old 20)
+cm-probe.sh:63	bash	30	-	no macOS measurement yet
+cm-probe.sh:64	curl	30	-	no macOS measurement yet
+cm-probe.sh:65	bash	10	-	no macOS measurement yet
+cm-probe.sh:67	bash	30	-	no macOS measurement yet
+cm-probe.sh:73	bash	60	-	head 1e: sign-in 20 s + list-data reads 30 s (cm-auth.js); no macOS measurement yet
+cm-probe.sh:82	bash	30	-	no macOS measurement yet
+cm-probe.sh:86	bash	1870	-	head 2d (commander 2026-11-23: stage 1 <= 60 min): the driver piece on its own clock (cm-probe-driver.sh E = start + 1825) + the last shutdown 30 + 15; records only; 1960 -> 1870 after 1e cognito rd 60 + 1f simctl 270 (stage 1 cap)
+cm-probe-driver.sh:24	uname	10	-	head 2d (commander 2026-11-23): driver piece uname; the same limit as stage 2 where it is the same command; no macOS measurement yet
+cm-probe-driver.sh:30	curl	300	9	Codemagic stage 1 cm-stage1-4 (8de0039): maestro-install s=9 = curl + sha + unzip + version together, so each step <= 9 s (n=1); head 2d: the same limit as stage 2
+cm-probe-driver.sh:32	unzip	120	9	Codemagic stage 1 cm-stage1-4 (8de0039): maestro-install s=9 = curl + sha + unzip + version together, so each step <= 9 s (n=1); head 2d: the same limit as stage 2
+cm-probe-driver.sh:34	$M	30	9	Codemagic stage 1 cm-stage1-4 (8de0039): maestro-install s=9 = curl + sha + unzip + version together, so each step <= 9 s (n=1); head 2d: the same limit as stage 2
+cm-probe-driver.sh:38	xcrun	140	-	head 2d (commander 2026-11-23): driver piece xcrun; the same limit as stage 2 where it is the same command; no macOS measurement yet
+cm-probe-driver.sh:41	xcrun	30	-	head 2d (commander 2026-11-23): driver piece xcrun; the same limit as stage 2 where it is the same command; no macOS measurement yet
+cm-probe-driver.sh:58	bash	70	-	head 2d (commander 2026-11-23): driver piece bash; the same limit as stage 2 where it is the same command; no macOS measurement yet
+cm-probe-driver.sh:77	xcrun	30	-	head 2d (commander 2026-11-23): driver piece xcrun; the same limit as stage 2 where it is the same command; no macOS measurement yet
+cm-probe.sh:95	node	70	7	B GitHub Actions head 1e 11 runs (cold 45070526708 + 10 consecutive, RESULT (9)): facts-status up to 7 s
+publish	node	160	51	B GitHub Actions run 45026053576: scrub 51 s with a booted iPhone, load 322 (26 s the run before)
+trial-login.yaml:14	wait	90	-	head 2d (commander 2026-11-23): Maestro wait cap, app open (GitHub run 3, unchanged 90); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-login.yaml:21	wait	30	-	head 2d (commander 2026-11-23): Maestro wait cap, E 25-3: mode button or form before the when (new); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-login.yaml:31	wait	30	-	head 2d (commander 2026-11-23): Maestro wait cap, form after the mode press (was 30, kept); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-login.yaml:43	wait	30	-	head 2d (commander 2026-11-23): Maestro wait cap, form after the retake (new, = the first); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-login.yaml:64	wait	15	-	head 2d (commander 2026-11-23): Maestro wait cap, E 25-2: submit seen = home, sign-in message or error mark (new); the retake only when none came; not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-home.yaml:7	wait	90	-	head 2d (commander 2026-11-23): Maestro wait cap, Maestro wait; not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-list.yaml:17	wait	20	-	head 2d (commander 2026-11-23): Maestro wait cap, list after the 2nd match (unchanged 20); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-list.yaml:30	wait	60	-	head 2d (commander 2026-11-23): Maestro wait cap, list after the 1st match (new, = the old final 60); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-list.yaml:43	wait	60	-	head 2d (commander 2026-11-23): Maestro wait cap, list after the retake (was 60, kept); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-list.yaml:52	wait	60	-	head 2d (commander 2026-11-23): Maestro wait cap, list after the records press (new, = the old 60); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-list.yaml:64	wait	60	-	head 2d (commander 2026-11-23): Maestro wait cap, list after the retake (was 60, kept); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-list.yaml:96	wait	20	-	head 2d (commander 2026-11-23): Maestro wait cap, E 25-1: the opened record ("閉じる") after the press (new); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+trial-list.yaml:108	wait	20	-	head 2d (commander 2026-11-23): Maestro wait cap, the opened record after the retake (new); not under cm_time (no measurement); the flow sum is checked against its MT_LIMIT (WAITS line)
+cm-auth.js:86	js-timer	20	-	sign-in POST (measured: cognito-auth ms= in the build log); inside cm-probe.sh:73 (rd 60: sign-in 20 + reads 30 = 50)
+cm-auth.js:48	js-timer	30	-	head 1e list-data reads in all (measured: list-data ms=); inside cm-probe.sh:73 (rd 60: sign-in 20 + reads 30 = 50)
+cm-auth.js:50	js-timer	10	-	head 1e one list-data GET; inside cm-auth.js:48 (30 in all, the 3 + 7 reads run in 2 parallel rounds)
+cm-facts-status.js:20	js-timer	60	-	the whole facts-status run (hard exit 0); inside cm-probe.sh:95 (limf 70)
+cm-facts-status.js:82	js-timer	20	-	one status POST; inside cm-facts-status.js:20 (any number of POSTs stop at 60)
+cm-ghstatus.js:16	js-timer	20	-	one status POST; inside cm-probe.sh:82,yaml-status:6 (rd 30 / limf 60: POST 20 + git remote 5 = 25; also cm-lim.sh limf 30)
+cm-repo.js:12	js-opt	5	-	git remote get-url (required by ghstatus and facts-status); inside cm-probe.sh:82,yaml-status:6,cm-facts-status.js:20
+cm-report.js:33	js-signal	10	-	local tool; inside - (no build step runs cm-report.js)
+cm-report.js:67	js-within	120	-	local tool; inside - (no build step runs cm-report.js)
+cm-report.js:83	js-within	60	-	local tool; inside - (no build step runs cm-report.js)
+cm-status.js:22	js-opt	20	-	local tool; inside - (no build step runs cm-status.js)
+cm-s2-status.js:24	js-timer	35	-	head 2 stage 2 status upload, whole run (hard exit 0); inside yaml-status:10 (limf 45)
+cm-s2-status.js:92	js-timer	15	-	head 2 one status POST; inside cm-s2-status.js:24 (any number of POSTs stop at 35)

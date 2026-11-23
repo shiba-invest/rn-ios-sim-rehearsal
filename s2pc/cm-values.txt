@@ -1,0 +1,5 @@
+1 ap-northeast-1_FAKEPOOL0
+1 fakeclient0000000000000000
+0 madeupother0000000000000000
+0re [a-z]{2}-[a-z]+-[0-9]_[A-Za-z0-9]{9}
+0re [a-z0-9]{10}[.]execute-api[.]

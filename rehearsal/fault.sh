@@ -38,6 +38,13 @@ syslog() { xcrun simctl spawn "$UDID" log stream --style compact --predicate 'pr
 # zs-hold = a listener on 127.0.0.1:22087 started just before home-first, named like a stale xcodebuild of this UDID so that
 # the clean (pkill -f "xcodebuild test-without-building.*UDID") removes it; zs-hold-noclean = same, ZS_CLEAN=0 (control).
 hold() { nohup perl -MIO::Socket::INET -e 'my $s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => 22087, Listen => 5, ReuseAddr => 1) or exit 1; while (my $c = $s->accept) { push @k, $c; }' \n  xcodebuild test-without-building "$UDID" > /dev/null 2>&1 & sleep 2; log "hold started port22087-listen=$(lsof -nP -iTCP:22087 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN)"; }
+# s2z1 / s2z2 = from the Enter on, every 1 s kill the driver runner (in the simulator) and its xcodebuild, so home-first runs no step
+# (zero-step); s2z1 stops the kills once home-first-again has started (again passes), s2z2 keeps killing (GATE driver FAIL).
+zkill() { ( D="$HOME/cm-maestro-raw/iphone"; t=0; n=0; while [ $t -lt 3000 ]; do
+    if [ "$FAULT" = s2z1 ] && [ -f "$D/m-home-first-again.console" ]; then log "z: home-first-again started, kills stop (kill rounds=$n)"; exit 0; fi
+    k=0; pkill -f "[m]aestro-driver-iosUITests" 2>/dev/null && k=1; pkill -f "[x]codebuild test-without-building" 2>/dev/null && k=1
+    [ "$k" = 1 ] && { n=$((n + 1)); [ "$n" = 1 ] && log "z: first kill at t=$t s"; }
+    sleep 1; t=$((t + 1)); done; log "z: kill loop ended at 3000 s (kill rounds=$n)" ) > /dev/null 2>&1 & log "z: runner kill loop started (every 1 s)"; }
 case "$FAULT:$P" in
   a:pre-login|b:pre-login|c-up:pre-login) block ;;
   a-look:pre-login|a-enter:pre-login) mkdir -p out/iphone; stepwatch; applog; block ;;
@@ -52,6 +59,8 @@ case "$FAULT:$P" in
   zs-hold:pre-login|zs-hold-noclean:pre-login) mkdir -p out/iphone; stepwatch; applog ;;
   zs-hold:pre-home|zs-hold-noclean:pre-home) hold ;;
   dst993:pre-login) mkdir -p out/iphone; stepwatch; applog ;;
+  s2m:pre-login|s2p:pre-login|s2c:pre-login|s2z1:pre-login|s2z2:pre-login) mkdir -p out/iphone; stepwatch; applog; syslog ;;
+  s2z1:post-enter|s2z2:post-enter) zkill ;;
   look:pre-login|look-old:pre-login|pwaf:pre-login|pwaf-ctl:pre-login) mkdir -p out/iphone; stepwatch; applog; syslog ;;
   a:post-enter|a-look:post-enter|a-enter:post-enter|c-up:post-enter) ( sleep 40; unblock ) > /dev/null 2>&1 & log "restore in 40 s" ;;
   a-look:pre-retry) words ;;

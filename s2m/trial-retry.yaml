@@ -1,0 +1,16 @@
+
+
+
+
+
+
+
+
+
+
+appId: dev.rehearsal.sim
+---
+- tapOn:
+    text: "•+"
+    label: cm-resubmit-field
+- pressKey: Enter   # lint-ok:screen-press-checked cm-run.sh runs trial-home.yaml next (waits for the home)

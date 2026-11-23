@@ -19,6 +19,9 @@ export default function List() {
       <View style={styles.root}>
         <Text style={styles.title}>記録の中身</Text>
         <Text>2 images (practice)</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="閉じる" style={styles.btn} onPress={() => setView('month')}>
+          <Text>閉じる</Text>
+        </Pressable>
       </View>
     );
   }

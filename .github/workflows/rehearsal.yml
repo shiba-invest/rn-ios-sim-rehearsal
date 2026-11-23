@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       fault:
-        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot | a-look | look | a-enter | gate-up | gate-up-500 | post-in | post-in-left | zs-hold | zs-hold-noclean | dst993 | drv | pwaf | pwaf-ctl | look-old | s1d"
+        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot | a-look | look | a-enter | gate-up | gate-up-500 | post-in | post-in-left | zs-hold | zs-hold-noclean | dst993 | drv | pwaf | pwaf-ctl | look-old | s1d | s2m | s2p | s2c | s2z1 | s2z2 (stage 2 on the 79bc0c8 mirror)"
         required: true
         default: none
         type: choice
-        options: [none, s1dc, s1x, s1xc, s1xf, s1xw, s1y, s1yw, s1z, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter, gate-up, gate-up-500, post-in, post-in-left, zs-hold, zs-hold-noclean, dst993, drv, pwaf, pwaf-ctl, look-old, s1d]
+        options: [none, s2m, s2p, s2c, s2z1, s2z2, s1dc, s1x, s1xc, s1xf, s1xw, s1y, s1yw, s1z, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter, gate-up, gate-up-500, post-in, post-in-left, zs-hold, zs-hold-noclean, dst993, drv, pwaf, pwaf-ctl, look-old, s1d]
       gate_only:
         description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
         required: false
@@ -65,6 +65,7 @@ jobs:
       MT_LOGIN: ${{ inputs.fault == 'dst993' && '1500' || '1180' }}
       MT_LIST: ${{ inputs.fault == 'dst993' && '1300' || '460' }}
       PWAF: ${{ inputs.fault == 'pwaf' && '1' || '0' }}
+      CM_PWAF: ${{ inputs.fault == 's2p' && '1' || '' }}
       DRV_ONLY: ${{ inputs.fault == 'drv' && '1' || '0' }}
       ZS_CLEAN: ${{ inputs.fault == 'zs-hold-noclean' && '0' || '1' }}
       MAESTRO_VERSION: "2.12.1"
@@ -101,6 +102,13 @@ jobs:
           P=$(command -v pod); mkdir -p "$HOME/pin-bin"
           printf '#!/bin/bash\nexec %s _1.16.2_ "$@"\n' "$P" > "$HOME/pin-bin/pod"; chmod +x "$HOME/pin-bin/pod"
           echo "$HOME/pin-bin" >> "$GITHUB_PATH"; "$HOME/pin-bin/pod" --version
+
+      - name: Practice only - stage 2 groups use the 79bc0c8 mirror (s2m = M and Z; s2pc = P and C, s2m + the plutil draft)
+        if: env.STAGE == '2' && startsWith(env.FAULT, 's2')
+        shell: bash
+        run: |
+          mkdir -p out; SD=s2m; case "$FAULT" in s2p|s2c) SD=s2pc;; esac
+          cp $SD/* .maestro/ && for x in $SD/*; do cmp "$x" ".maestro/${x#$SD/}" || exit 1; done && echo "fault $FAULT: $SD mirror files=$(ls $SD | wc -l | tr -d ' ') driver-start-s=$(awk -F'\t' '$1=="driver-start-s"{print $2}' .maestro/cm-limits.txt)" | tee -a out/fault.txt
 
       - name: Practice only - stage 1 uses the stage 1 head's cm-lim.sh (the repo copy is the stage 2 head's)
         if: env.STAGE == '1'
@@ -159,14 +167,14 @@ jobs:
 
           case "${CM_TAG:-}" in cm-stage2-*) ;; *) echo "GATE a FAIL: CM_TAG is not cm-stage2-* (nothing run, nothing written)"; exit 1;; esac
           trap cm_publish EXIT
-          cm_need_values || exit 1
+          cm_need_values || exit 1; case "$FAULT" in s2*) [ -n "$(cm_tab driver-start-s)" ] || { cm_say "GATE a FAIL: driver-start-s is not filled in .maestro/cm-limits.txt (the commander writes it from the stage 1 driver-cold fact; stage 2 never runs on a placeholder)"; exit 1; }; BL=$(E2E_DEV_LOGINS_B64="${CM_BLOB:-}" limf 30 node .maestro/cm-blob.js 2>/dev/null) || BL="logins-blob record did not finish"; cm_say "$BL";; esac
 
           GH_STATUS_TOKEN="$CM_GHT" limf 30 node .maestro/cm-ghstatus.js codemagic/ios-sim-verify pending "stage 2 running" || true
           lim 250 bash .maestro/cm-gates.sh toolchain 2>&1 | tee out/logs/a-toolchain.log
 
 
 
-          lim 30 bash .maestro/netcheck.sh out/logs/a-net.txt gate-a || { cm_say "GATE a FAIL: Cognito unreachable from the Mac"; exit 1; }
+          NCL=30; case "$FAULT" in s2*) NCL=90;; esac; lim "$NCL" bash .maestro/netcheck.sh out/logs/a-net.txt gate-a || { cm_say "GATE a FAIL: Cognito unreachable from the Mac"; exit 1; }
 
 
 
@@ -243,7 +251,7 @@ jobs:
         run: |
           #!/bin/bash
           if [ "$FAULT" = mid ]; then rm -rf ios/app.xcworkspace; echo "fault mid: ios/app.xcworkspace removed" | tee -a out/fault.txt; fi
-          if [ "$FAULT" = look-old ] || [ "$FAULT" = pwaf ] || [ "$FAULT" = pwaf-ctl ]; then cp rehearsal/index-old.tsx app/index.tsx; echo "fault look-old: older password row n=$(grep -c secureTextEntry app/index.tsx)" | tee -a out/fault.txt; fi
+          if [ "$FAULT" = look-old ] || [ "$FAULT" = pwaf ] || [ "$FAULT" = pwaf-ctl ] || [ "$FAULT" = s2p ] || [ "$FAULT" = s2c ]; then cp rehearsal/index-old.tsx app/index.tsx; echo "fault look-old: older password row n=$(grep -c secureTextEntry app/index.tsx)" | tee -a out/fault.txt; fi
           case "$FAULT" in a-look|look|a-enter|gate-up|gate-up-500|post-in|post-in-left|look-old|pwaf|pwaf-ctl) sed -i '' 's/console\.log(`\[REHEARSAL\]/console.error(`[REHEARSAL]/; s/console\.log('"'"'\[REHEARSAL\]/console.error('"'"'[REHEARSAL]/' app/index.tsx src/auth.ts; echo "fault $FAULT: app log lines to the error level n=$(cat app/index.tsx src/auth.ts | grep -c 'console.error(.\[REHEARSAL\]')" | tee -a out/fault.txt;; esac
           if [ "$FAULT" = norecord ]; then sed -i '' 's/back >= 1 ?/back >= 99 ?/' app/list.tsx; echo "fault norecord: record hidden n=$(grep -c 'back >= 99' app/list.tsx)" | tee -a out/fault.txt; fi
 
@@ -262,7 +270,7 @@ jobs:
           lim 120 xcodebuild -workspace "$WS" -list -json > out/logs/schemes.json
           lim 30 node .maestro/cm-step.js scheme-once out/logs/schemes.json "$SCHEME"
           echo "workspace=$WS scheme=$SCHEME configuration=Release derivedData=$DD app=$APP" | tee out/logs/build-head.log
-          lim 2780 xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \
+          BLD=2780; case "$FAULT" in s2*) BLD=4170;; esac; lim "$BLD" xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath "$DD" \
             ONLY_ACTIVE_ARCH=YES ARCHS=arm64 CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build > out/logs/xcodebuild.log 2>&1 || { tail -80 out/logs/xcodebuild.log; exit 1; }
           tail -40 out/logs/xcodebuild.log
