@@ -21,9 +21,10 @@ appId: dev.rehearsal.sim
     when:
       notVisible: "記録の一覧"
     commands:
+      # practice fix (B 2026-11-23, M2/M10): index 0 is the plain title text that never navigates; the fallbacks press the card (index 1) again
       - tapOn:
           text: "ホーム"
-          index: 0
+          index: 1
           label: cm-list-tile-1st
       - extendedWaitUntil:
           visible: "記録の一覧"
@@ -36,7 +37,7 @@ appId: dev.rehearsal.sim
           commands:
             - tapOn:
                 text: "ホーム"
-                index: 0
+                index: 1
                 label: cm-list-tile-retake
 - extendedWaitUntil:
     visible: "記録の一覧"

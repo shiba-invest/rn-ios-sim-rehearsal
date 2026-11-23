@@ -7,7 +7,7 @@ export default function Home() {
     <View style={styles.root}>
       <Text style={styles.title}>ホーム</Text>
       <Text>The request reached the server and came back.</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="ホーム" style={styles.card} onPress={() => router.push('/list')}>
+      <Pressable accessibilityRole="button" accessibilityLabel="ホーム" style={styles.card} onPress={() => { console.log('[REHEARSAL] home card press'); router.push('/list'); }}>
         <Text style={styles.cardText}>一覧をひらく</Text>
       </Pressable>
     </View>
