@@ -54,7 +54,7 @@ clean() { # the E section 27 clean-up, once: its lines as FACT lines
       "driver log: "*) fact driver-log "${x#driver log: }" -;; esac; done; }
 diag() { # <key> <hier line>: after a failed start (not rc=0, not rc=skip), cm-driver-diag.sh as 2 FACT lines (counts and class names only)
   case "$2" in "rc=0 "*|"rc=skip "*) return;; esac; local L; L=$(left 110); if [ "$L" -lt 15 ]; then fact "$1-diag" no-time -; return; fi
-  limf "$L" bash .maestro/cm-driver-diag.sh "$U" "$R/$1.txt" 2>/dev/null | while IFS= read -r x; do case "$x" in "out "*|"sys "*) fact "$1-diag-${x%% *}" "${x#* }" -;; esac; done; }
+  limf "$L" bash "$(dirname "$0")/../.maestro/cm-driver-diag.sh" "$U" "$R/$1.txt" 2>/dev/null | while IFS= read -r x; do case "$x" in "out "*|"sys "*) fact "$1-diag-${x%% *}" "${x#* }" -;; esac; done; }
 to() { case "$1" in rc=142\ *|rc=skip\ *|*Timeout*) return 0;; esac; return 1; }
 S="cold=fail warm=not-run"; v1=$(hier driver-cold 1100 993); fact driver-cold "$v1" "rc=0"; diag driver-cold "$v1"
 case "$v1" in
