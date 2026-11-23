@@ -101,7 +101,7 @@ evid() { # <name>: after a failed maestro run: hierarchy line count and fixed al
   rl=$(find "$RAW/m-$n" "$HOME/.maestro/tests" -name 'xctest_runner*.log' -newer "$CM_ROOT/out/t0" 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
   [ -n "$rl" ] && rc=$(tail -200 "$rl" | grep -o -E '\b[A-Z][A-Za-z]*(Exception|Error|Timeout|Failure|Unreachable)\b' | awk '!s[$0]++' | head -3 | tr '
 ' ',')
-  note "evidence $n hierarchy-rc=$r lines=$(grep -c . "$h")$o runner-log=$([ -n "$rl" ] && echo found || echo none) runner-classes=${rc:-none}"; }
+  note "evidence $n hierarchy-rc=$r lines=$(grep -c . "$h")$o springboard-lines=$(grep -c -i springboard "$h") springboard-alert-lines=$(grep -i springboard "$h" | grep -c -i alert) runner-log=$([ -n "$rl" ] && echo found || echo none) runner-classes=${rc:-none}"; }
 mt() { # <name> <flow> [-e ...]: one maestro test, debug output outside out/; returns its rc
   local n="$1" f="$2"; shift 2; local r=0
   memlog "before $n"; portlog "before $n"
