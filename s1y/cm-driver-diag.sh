@@ -31,7 +31,7 @@ if [ "${1:-}" = --sample ]; then U="$2"; S="$3"; t0=$(date +%s); n=0; mr=0; md=0
 U="$1"; F="$2"; FE="${3:-}"; SM="${4:-}"
 cls() { perl -ne 'print "$1\n" if /\b([A-Za-z]{2,40}(?:Exception|Error|Timeout|Failure|Unreachable))\b/' | awk '!s[$0]++ && ++n <= 3' | paste -sd, - || true; }
 O=$(DF="$F" DE="$FE" limf 10 perl -e '
-  my ($n, $e, %k, @l) = (0, 0); my @order = qw(json at exc warn info blank other); my @x;
+  my ($n, $e, %k, @l) = (0, 0); my @order = qw(tree at exc warn info blank other); my @x;
   for my $p ($ENV{DF}, $ENV{DE}) { my $h; next unless length $p && open($h, "<", $p); my @y = <$h>; $e = @y if $p eq $ENV{DE}; push @x, @y; }
   unless (@x) { print "lines=0 err=0 kinds=none last3=-"; exit 0 }
   for my $x (@x) { $x =~ s/\r//g; $x =~ s/\e\[[0-9;]*[A-Za-z]//g; $n++;
