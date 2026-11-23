@@ -9,6 +9,9 @@ const fs = require('fs');
 const path = require('path');
 const CLS = /\b([A-Z][A-Za-z]*(?:Exception|Error|Timeout|Failure|Unreachable|Refused))\b/g;
 function shape(key, text) {
+  const H = { deep: 0, one: 0, tab: 0, brace: 0, alpha: 0, other: 0 };
+  for (const r of text.split('\n').map((l) => l.replace(/\r$/, '').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')).filter((l) => l.trim())) {
+    H[/^ {2,}/.test(r) ? 'deep' : /^ /.test(r) ? 'one' : /^\t/.test(r) ? 'tab' : /^[{}[\]"]/.test(r) ? 'brace' : /^[A-Za-z]/.test(r) ? 'alpha' : 'other']++; }
   const L = text.split('\n').map((l) => l.replace(/\r$/, '').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').trim()).filter((l) => l);
   const n = { json: 0, at: 0, err: 0, other: 0 }; const cls = new Set(); const kinds = [];
   let inJson = L.length > 0 && /^[{[]/.test(L[0]);
@@ -21,7 +24,7 @@ function shape(key, text) {
     n[k]++; kinds.push(k);
   }
   const c = [...cls].sort();
-  return `FACT driver-shape-${key.replace(/[^A-Za-z-]/g, '_')} value=lines=${L.length} json=${n.json} at=${n.at} err=${n.err} other=${n.other} classes=${c.length ? c.join(',') : '-'} last3=${kinds.slice(-3).join(',') || '-'} expect=- verdict=RECORD`;
+  return `FACT driver-shape-${key.replace(/[^A-Za-z-]/g, '_')} value=lines=${L.length} json=${n.json} at=${n.at} err=${n.err} other=${n.other} classes=${c.length ? c.join(',') : '-'} heads=${Object.entries(H).map(([a, b]) => a + ':' + b).join(',')} last3=${kinds.slice(-3).join(',') || '-'} expect=- verdict=RECORD`;
 }
 function selftest() {
   const sample = ['Running on iPhone 17 Pro', 'Waiting for the driver user=demo-7731 at 10.0.0.5:22087 screen "Sign in now"',
@@ -32,7 +35,7 @@ function selftest() {
   const pos = posWant.map((w) => (out.includes(w) ? 1 : 0));
   const negBan = ['demo', '7731', '10.0.0.5', '22087', 'Sign in now', 'iPhone', '118', 'XCTestDriverClient'];
   const neg = negBan.map((w) => (out.includes(w) ? 1 : 0));
-  const digits = out.replace(/(lines|json|at|err|other)=\d+/g, '').replace(/last3=/, '').replace(/driver-shape-\S+/, '').match(/\d/g);
+  const digits = out.replace(/(lines|json|at|err|other)=\d+/g, '').replace(/last3=/, '').replace(/heads=\S+/, '').replace(/driver-shape-\S+/, '').match(/\d/g);
   const j = shape('cold', '{\n  "attributes": {"text": "Hello 123"}\n}');
   const jok = j.includes('json=3') && !j.includes('Hello') && !j.includes('123') ? 1 : 0;
   console.log(out); console.log(j);

@@ -121,8 +121,8 @@ jobs:
           . .maestro/cm-lim.sh step=probe; trap cm_publish EXIT
           mkdir -p out/probe
           # practice only: every 30 s, counts only (processes, listening ports 7001/22087, raw driver output lines)
-          ( s0=$(date +%s); while :; do c() { pgrep -f "$1" 2>/dev/null | wc -l | tr -d ' '; }; p() { lsof -nP -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | tail -n +2 | wc -l | tr -d ' '; }; w() { [ -f "$HOME/cm-probe-raw/driver-$1.txt" ] && wc -l < "$HOME/cm-probe-raw/driver-$1.txt" | tr -d ' ' || echo -; }
-            echo "t=$(( $(date +%s) - s0 )) maestro=$(c "maestro[.]cli") xcodebuild=$(c xcodebuild) runner=$(c maestro-driver) xctest=$(c XCTest) l7001=$(p 7001) l22087=$(p 22087) cold=$(w cold) warm=$(w warm) again=$(w cold-again)"; sleep 30; done ) > out/probe/proc-samples.txt 2>/dev/null & SP=$!
+          ( s0=$(date +%s); while :; do c() { pgrep -f "$1" 2>/dev/null | wc -l | tr -d ' '; }; p() { lsof -nP -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | tail -n +2 | wc -l | tr -d ' '; }; lp() { local q; q=$(pgrep -d, -f "$1" 2>/dev/null); [ -n "$q" ] && { lsof -a -p "$q" -iTCP -sTCP:LISTEN -nP 2>/dev/null | tail -n +2 | wc -l | tr -d ' '; } || echo -; }; w() { [ -f "$HOME/cm-probe-raw/driver-$1.txt" ] && wc -l < "$HOME/cm-probe-raw/driver-$1.txt" | tr -d ' ' || echo -; }
+            echo "t=$(( $(date +%s) - s0 )) maestro=$(c "maestro[.]cli") xcodebuild=$(c xcodebuild) runner=$(c maestro-driver) xctest=$(c XCTest) l7001=$(p 7001) l22087=$(p 22087) cold=$(w cold) warm=$(w warm) again=$(w cold-again) xlisten=$(lp "[x]codebuild test-without-building") dlisten=$(lp "[m]aestro-driver-iosUITests") mlisten=$(lp "[m]aestro[.]cli")"; sleep 30; done ) > out/probe/proc-samples.txt 2>/dev/null & SP=$!
           bash .maestro/cm-probe.sh 2>&1 | tee out/probe-console.log || true
           kill $SP 2>/dev/null || true
           node rehearsal/drvshape.js "$HOME/cm-probe-raw" out/probe/driver-shape.txt || true
