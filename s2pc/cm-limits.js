@@ -48,7 +48,7 @@ function scan(rd = disk) {
 const key = (r) => `${r.place} ${r.cmd}`;
 function readInv(rd = disk) {
   const t = rd('.maestro/cm-limits.txt'); if (t === null) return null;
-  return t.split('\n').filter((l) => l.trim() && !l.startsWith('#') && !/^driver-(start|stall)-s\t/.test(l)).map((l) => {
+  return t.split('\n').filter((l) => l.trim() && !l.startsWith('#') && !/^driver-(start|start-first|stall)-s\t/.test(l)).map((l) => {
     const [place, cmd, limit, max, ...src] = l.split('\t'); return { place, cmd, limit: +limit, max: max === '-' ? null : +max, src: src.join(' ') }; });
 }
 function measured(files) {

@@ -3,6 +3,7 @@
 
 
 driver-start-s	993	practice mirror only (commander 2026-11-23): GitHub practice cold up to 358 s (B s1z); Codemagic head keeps 300
+driver-start-first-s	450	practice mirror only (commander 2026-11-23, F1 M5): the first login try only; its -again keeps driver-start-s; passed runs reached the first step in 182-716 s
 driver-stall-s	120	placeholder (B s2h-old2: the class line, then no step until the 610 s cut)
 yaml-a:9	node	30	-	head 2d (commander 2026-11-23): logins blob record (cm-blob.js: one sha256 + one base64url/JSON parse of 2204 chars); local unit run under 1 s; record only, a cut = "did not finish"
 yaml-a:11	node	30	1	B GitHub Actions rehearsal (head 2c copy) fault a run 45066594515: 1 s
