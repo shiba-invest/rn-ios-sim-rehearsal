@@ -68,11 +68,32 @@ start_rec() { [ -z "$REC" ] || return 0
 memlog() { # practice only: free memory (free+inactive+speculative pages) to out/logs/mem.txt, numbers only
   local p; p=$(sysctl -n hw.pagesize 2>/dev/null || echo 16384)
   echo "$(date -u +%H:%M:%S) $1 free_mb=$(( $(vm_stat | awk '/Pages free|Pages inactive|Pages speculative/ {gsub(/[.]/,"",$NF); s+=$NF} END {print s+0}') * p / 1048576 ))" >> "$CM_ROOT/out/logs/mem.txt" 2>/dev/null || true; }
+portlog() { # practice only: driver port 22087 LISTEN count, runner and xcodebuild-twb process counts (numbers only)
+  local l rn xb; l=$(lsof -nP -iTCP:22087 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN); rn=$(pgrep -f "maestro-driver-iosUITests" 2>/dev/null | grep -c .)
+  xb=$(pgrep -f "xcodebuild test-without-building" 2>/dev/null | grep -c .)
+  echo "$(date -u +%H:%M:%S) $(date +%s) $1 port22087-listen=$l runner-pid=$rn xcodebuild-twb=$xb" >> "$CM_ROOT/out/logs/port.txt" 2>/dev/null || true; }
+zero_step() { # <name>: 0 when the console of that maestro run has no step line at all; notes class names + exit numbers only
+  local n="$1" c="$RAW/m-$1.console" k cc rl rc ex
+  k=$(node rehearsal/steps.js "$c" 0 2>/dev/null | awk '$2 != "other" && $2 != "device" && $2 != "flow-start"' | grep -c .)
+  [ "$k" -eq 0 ] || return 1
+  cc=$(node rehearsal/steps.js "$c" 0 2>/dev/null | grep -o 'class=[A-Za-z]*' | cut -d= -f2 | awk '!s[$0]++' | head -3 | tr '\n' ',')
+  rl=$(find "$RAW/m-$n" "$HOME/.maestro/tests" -name 'xctest_runner*.log' -newer "$CM_ROOT/out/t0" 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+  if [ -n "$rl" ]; then
+    rc=$(tail -200 "$rl" | grep -o -E '\b[A-Z][A-Za-z]*(Exception|Error|Timeout|Failure|Unreachable)\b' | awk '!s[$0]++' | head -3 | tr '\n' ',')
+    ex=$(tail -200 "$rl" | grep -o -i -E '(exit(ed)?( with)? (code|status)|exit code)[ :=]*[0-9]+' | grep -o -E '[0-9]+$' | tail -1)
+    note "zero-step $n console-classes=${cc:-none} runner-log=found runner-classes=${rc:-none} exit=${ex:-none}"
+  else note "zero-step $n console-classes=${cc:-none} runner-log=none"; fi
+  return 0; }
+zs_clean() { # E section 27: runner only, this UDID's xcodebuild only, wait for the port to close (max 10 s)
+  local i=0; limf 30 xcrun simctl terminate "$UDID" dev.mobile.maestro-driver-iosUITests.xctrunner >/dev/null 2>&1 || true
+  limf 15 pkill -f "xcodebuild test-without-building.*$UDID" >/dev/null 2>&1 || true
+  while [ $i -lt 10 ] && lsof -nP -iTCP:22087 -sTCP:LISTEN >/dev/null 2>&1; do sleep 1; i=$((i + 1)); done
+  note "zero-step clean done waited=${i}s port22087-listen=$(lsof -nP -iTCP:22087 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN)"; }
 mt() { # <name> <flow> [-e ...]: one maestro test, debug output outside out/; returns its rc
   local n="$1" f="$2"; shift 2; local r=0
-  memlog "before $n"
+  memlog "before $n"; portlog "before $n"
   lim "${MT_LIMIT:-300}" maestro --device "$UDID" test --test-output-dir "$RAW/m-$n" -e ORIENT="$O" "$@" ".maestro/$f" > "$RAW/m-$n.console" 2>&1 < /dev/null || r=$?
-  memlog "after $n rc=$r"
+  memlog "after $n rc=$r"; portlog "after $n rc=$r"
   note "flow $n rc=$r (142 = over the limit) at $(date -u +%H:%M:%S)"
   return "$r"
 }
@@ -86,7 +107,10 @@ shots() { # D3 <tag>
 home() { # <tag>: trial-home after one Enter with the D3 shots beside it; records the seconds from the Enter to the home
   local r=0 sp; ENTER_AT=$(date +%s)
   shots "$1" & sp=$!
-  MT_LIMIT=610 mt "home-$1" trial-home.yaml || r=$?
+  MT_LIMIT="${MT_HOME:-610}" mt "home-$1" trial-home.yaml || r=$?
+  if [ "$r" -ne 0 ] && zero_step "home-$1"; then # one retry of the same flow after a zero-step run (ZS_CLEAN=0 = no clean, control)
+    ZS=$((ZS + 1)); if [ "${ZS_CLEAN:-1}" = 1 ]; then zs_clean; else note "zero-step clean skipped (control)"; fi
+    r=0; MT_LIMIT="${MT_HOME:-610}" mt "home-$1-zs" trial-home.yaml || r=$?; note "zero-step retry home-$1 rc=$r"; fi
   kill "$sp" 2>/dev/null || true; wait "$sp" 2>/dev/null || true
   note "login $1 enter-to-result-s(with the Maestro CLI start)=$(( $(date +%s) - ENTER_AT )) home=$([ "$r" -eq 0 ] && echo yes || echo no)"
   return "$r"
@@ -101,10 +125,19 @@ fault_hook() { local fh="${FAULT_HOOK:-}"; [ -n "$fh" ] || return 0; bash "$fh" 
 FLOWS=.maestro/cm-flows.txt
 [ -f "$FLOWS" ] || { note "GATE flows: $FLOWS missing"; exit 1; }
 
+if [ "${DRV_ONLY:-0}" = 1 ]; then # practice only: the driver piece alone (boot above -> hierarchy --compact x2 -> shutdown)
+  for i in 1 2; do [ "$i" = 1 ] && DT="${DRV_T1:-993000}" || DT="${DRV_T2:-540000}"; s=$(date +%s); r=0; portlog "before drv $i"
+    MAESTRO_DRIVER_STARTUP_TIMEOUT="$DT" lim 1300 maestro --device "$UDID" hierarchy --compact > "$RAW/drv-$i.txt" 2>&1 < /dev/null || r=$?
+    k=$(grep -o -E '[A-Z][A-Za-z]*(Exception|Error|Timeout|Failure|Unreachable)' "$RAW/drv-$i.txt" | awk '!s[$0]++' | head -3 | tr '
+' ',')
+    note "drv $i startup-timeout-ms=$DT s=$(( $(date +%s) - s )) rc=$r class=${k:-none} lines=$(grep -c . "$RAW/drv-$i.txt")"; portlog "after drv $i rc=$r"; done
+  r=0; limf 60 xcrun simctl shutdown "$UDID" || r=$?; note "drv shutdown rc=$r"; say "drv done"; exit 0; fi
+ZS=0
 fault_hook pre-login
 lim 115 bash .maestro/netcheck.sh "$NET" "pre-login" >/dev/null 2>&1 || true
-MT_LIMIT=1180 mt login trial-login.yaml -e LOGIN_ID="$LID" -e LOGIN_PW="$LPW" || flow_fail "login form, before the Enter key"
+MT_LIMIT="${MT_LOGIN:-1180}" mt login trial-login.yaml -e LOGIN_ID="$LID" -e LOGIN_PW="$LPW" || { zero_step login || true; flow_fail "login form, before the Enter key"; }
 fault_hook post-enter
+fault_hook pre-home
 if ! home first; then
   if login_net_msg; then
     NETERR=1; note "login network message after the first Enter (network-errors=1)"
@@ -122,9 +155,9 @@ HOME_OK=1; start_rec
 while read -r n f m <&3 || [ -n "${n:-}" ]; do
   case "$n" in ''|'#'*) continue;; esac
   [ -n "${f:-}" ] && [ -n "${m:-}" ] || { note "GATE flows: bad line in $FLOWS"; exit 1; }
-  MT_LIMIT=460 mt "$n" "$f" || { if [ -n "$(find "$RAW/m-$n" -name "05-no-record-7-months*.png" -print 2>/dev/null)" ]; then
+  MT_LIMIT="${MT_LIST:-460}" mt "$n" "$f" || { if [ -n "$(find "$RAW/m-$n" -name "05-no-record-7-months*.png" -print 2>/dev/null)" ]; then
       note "GATE data FAIL: $n no photo record in 7 months on the home the app opened (fresh simulator = first assigned home)"; fi
     flow_fail "$m"; }
 done 3< "$FLOWS"
-say "flow passed"
+note "zero-step-retries=$ZS"; say "flow passed"
 exit 0

@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       fault:
-        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot | a-look | look | a-enter | gate-up | gate-up-500 | post-in | post-in-left | look-old"
+        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot | a-look | look | a-enter | gate-up | gate-up-500 | post-in | post-in-left | zs-hold | zs-hold-noclean | dst993 | drv | look-old"
         required: true
         default: none
         type: choice
-        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter, gate-up, gate-up-500, post-in, post-in-left, look-old]
+        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter, gate-up, gate-up-500, post-in, post-in-left, zs-hold, zs-hold-noclean, dst993, drv, look-old]
       gate_only:
         description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
         required: false
@@ -60,7 +60,12 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       EXPO_NO_TELEMETRY: "1"
       MAESTRO_CLI_NO_ANALYTICS: "1"
-      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: ${{ inputs.fault == 'dst993' && '993000' || '300000' }}
+      MT_HOME: ${{ inputs.fault == 'dst993' && '1300' || '610' }}
+      MT_LOGIN: ${{ inputs.fault == 'dst993' && '1500' || '1180' }}
+      MT_LIST: ${{ inputs.fault == 'dst993' && '1300' || '460' }}
+      DRV_ONLY: ${{ inputs.fault == 'drv' && '1' || '0' }}
+      ZS_CLEAN: ${{ inputs.fault == 'zs-hold-noclean' && '0' || '1' }}
       MAESTRO_VERSION: "2.12.1"
       EXPO_NO_GIT_STATUS: "1"
       MAESTRO_ZIP_SHA256: "54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7"

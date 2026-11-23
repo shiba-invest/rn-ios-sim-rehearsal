@@ -35,6 +35,9 @@ postin() { ( O="$PWD/out/iphone/app-log.txt"; t=0; while [ $t -lt 3600 ]; do
     sleep 0.5; t=$((t + 1)); done; log "post-in: password focus never seen, no block" ) & log "post-in watch started (app log, pw focus)"; }
 syslog() { xcrun simctl spawn "$UDID" log stream --style compact --predicate 'process CONTAINS[c] "AutoFill" OR process CONTAINS[c] "passwordbreach" OR process CONTAINS[c] "SharedWebCredential" OR subsystem CONTAINS[c] "AuthenticationServices" OR eventMessage CONTAINS[c] "savePassword"' 2>/dev/null \
   | sed -l -n 's/^[0-9-]* \([0-9:]*\)[.0-9]* *[A-Za-z]* *\([A-Za-z]*\)\[.*/\1 \2/p' > "$PWD/out/iphone/sys-pw.txt" & log "password prompt process log started (time and process name only)"; }
+# zs-hold = a listener on 127.0.0.1:22087 started just before home-first, named like a stale xcodebuild of this UDID so that
+# the clean (pkill -f "xcodebuild test-without-building.*UDID") removes it; zs-hold-noclean = same, ZS_CLEAN=0 (control).
+hold() { nohup perl -MIO::Socket::INET -e 'my $s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => 22087, Listen => 5, ReuseAddr => 1) or exit 1; while (my $c = $s->accept) { push @k, $c; }' \n  xcodebuild test-without-building "$UDID" > /dev/null 2>&1 & sleep 2; log "hold started port22087-listen=$(lsof -nP -iTCP:22087 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN)"; }
 case "$FAULT:$P" in
   a:pre-login|b:pre-login|c-up:pre-login) block ;;
   a-look:pre-login|a-enter:pre-login) mkdir -p out/iphone; stepwatch; applog; block ;;
@@ -46,6 +49,9 @@ case "$FAULT:$P" in
 ' 'appId: dev.rehearsal.sim' '---' '- tapOn:' '    text: "•+"' '- pressKey: Enter' > .maestro/trial-retry.yaml; log "retry flow = masked text then Enter" ;;
   post-in-left:pre-retry) words; printf '%s
 ' 'appId: dev.rehearsal.sim' '---' '- tapOn:' '    leftOf: "パスワードを表示"' '- pressKey: Enter' > .maestro/trial-retry.yaml; log "retry flow = leftOf the eye button then Enter" ;;
+  zs-hold:pre-login|zs-hold-noclean:pre-login) mkdir -p out/iphone; stepwatch; applog ;;
+  zs-hold:pre-home|zs-hold-noclean:pre-home) hold ;;
+  dst993:pre-login) mkdir -p out/iphone; stepwatch; applog ;;
   look:pre-login|look-old:pre-login) mkdir -p out/iphone; stepwatch; applog; syslog ;;
   a:post-enter|a-look:post-enter|a-enter:post-enter|c-up:post-enter) ( sleep 40; unblock ) > /dev/null 2>&1 & log "restore in 40 s" ;;
   a-look:pre-retry) words ;;
