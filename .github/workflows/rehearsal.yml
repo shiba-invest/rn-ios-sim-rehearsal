@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       fault:
-        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot | a-look | look | a-enter | gate-up | gate-up-500 | post-in | post-in-left | zs-hold | zs-hold-noclean | dst993 | drv | pwaf | pwaf-ctl | look-old"
+        description: "none | a | b | c-up | d-cold | d-cap | e | noboot | mid | dl | norecord | keepboot | a-look | look | a-enter | gate-up | gate-up-500 | post-in | post-in-left | zs-hold | zs-hold-noclean | dst993 | drv | pwaf | pwaf-ctl | look-old | s1d"
         required: true
         default: none
         type: choice
-        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter, gate-up, gate-up-500, post-in, post-in-left, zs-hold, zs-hold-noclean, dst993, drv, pwaf, pwaf-ctl, look-old]
+        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter, gate-up, gate-up-500, post-in, post-in-left, zs-hold, zs-hold-noclean, dst993, drv, pwaf, pwaf-ctl, look-old, s1d]
       gate_only:
         description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
         required: false
@@ -105,7 +105,8 @@ jobs:
       - name: Practice only - stage 1 uses the stage 1 head's cm-lim.sh (the repo copy is the stage 2 head's)
         if: env.STAGE == '1'
         shell: bash
-        run: cp rehearsal/s1-lim.sh .maestro/cm-lim.sh && cmp rehearsal/s1-lim.sh .maestro/cm-lim.sh && echo "s1 cm-lim.sh in place"
+        run: |
+          if [ "$FAULT" = s1d ]; then cp s1d/* .maestro/ && for x in s1d/*; do cmp "$x" ".maestro/${x#s1d/}" || exit 1; done && echo "s1d head 2d part 1 stage 1 files in place: $(ls s1d | wc -l)"; else cp rehearsal/s1-lim.sh .maestro/cm-lim.sh && cmp rehearsal/s1-lim.sh .maestro/cm-lim.sh && echo "s1 cm-lim.sh in place"; fi
 
       - name: Probe (stage 1, records only, always exit 0)
         if: env.STAGE == '1'
