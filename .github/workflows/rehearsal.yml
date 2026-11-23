@@ -11,7 +11,7 @@ on:
         required: true
         default: none
         type: choice
-        options: [none, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter, gate-up, gate-up-500, post-in, post-in-left, zs-hold, zs-hold-noclean, dst993, drv, pwaf, pwaf-ctl, look-old, s1d]
+        options: [none, s1dc, a, b, c-up, d-cold, d-cap, e, noboot, mid, dl, norecord, keepboot, a-look, look, a-enter, gate-up, gate-up-500, post-in, post-in-left, zs-hold, zs-hold-noclean, dst993, drv, pwaf, pwaf-ctl, look-old, s1d]
       gate_only:
         description: "none = full run | A = network then boot | B = boot then network (Gate a measurement only)"
         required: false
@@ -106,7 +106,7 @@ jobs:
         if: env.STAGE == '1'
         shell: bash
         run: |
-          if [ "$FAULT" = s1d ]; then cp s1d/* .maestro/ && for x in s1d/*; do cmp "$x" ".maestro/${x#s1d/}" || exit 1; done && echo "s1d head 2d part 1 stage 1 files in place: $(ls s1d | wc -l)"; else cp rehearsal/s1-lim.sh .maestro/cm-lim.sh && cmp rehearsal/s1-lim.sh .maestro/cm-lim.sh && echo "s1 cm-lim.sh in place"; fi
+          if [ "$FAULT" = s1d ] || [ "$FAULT" = s1dc ]; then cp s1d/* .maestro/ && for x in s1d/*; do cmp "$x" ".maestro/${x#s1d/}" || exit 1; done && echo "s1d head 2d part 1 stage 1 files in place: $(ls s1d | wc -l)"; if [ "$FAULT" = s1dc ]; then sed -i '' 's/^  rc=0\\ \*) v=\$(hier driver-warm/  rc=0\\ *) clean; v=$(hier driver-warm/' .maestro/cm-probe-driver.sh; [ "$(grep -c 'clean; v=$(hier driver-warm' .maestro/cm-probe-driver.sh)" = 1 ] || exit 1; echo "s1dc control: clean-up between cold and warm"; fi; else cp rehearsal/s1-lim.sh .maestro/cm-lim.sh && cmp rehearsal/s1-lim.sh .maestro/cm-lim.sh && echo "s1 cm-lim.sh in place"; fi
 
       - name: Probe (stage 1, records only, always exit 0)
         if: env.STAGE == '1'
@@ -119,7 +119,13 @@ jobs:
         run: |
           #!/bin/bash
           . .maestro/cm-lim.sh step=probe; trap cm_publish EXIT
+          mkdir -p out/probe
+          # practice only: every 30 s, counts only (processes, listening ports 7001/22087, raw driver output lines)
+          ( s0=$(date +%s); while :; do c() { pgrep -f "$1" 2>/dev/null | wc -l | tr -d ' '; }; p() { lsof -nP -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | tail -n +2 | wc -l | tr -d ' '; }; w() { [ -f "$HOME/cm-probe-raw/driver-$1.txt" ] && wc -l < "$HOME/cm-probe-raw/driver-$1.txt" | tr -d ' ' || echo -; }
+            echo "t=$(( $(date +%s) - s0 )) maestro=$(c "maestro[.]cli") xcodebuild=$(c xcodebuild) runner=$(c maestro-driver) xctest=$(c XCTest) l7001=$(p 7001) l22087=$(p 22087) cold=$(w cold) warm=$(w warm) again=$(w cold-again)"; sleep 30; done ) > out/probe/proc-samples.txt 2>/dev/null & SP=$!
           bash .maestro/cm-probe.sh 2>&1 | tee out/probe-console.log || true
+          kill $SP 2>/dev/null || true
+          node rehearsal/drvshape.js "$HOME/cm-probe-raw" out/probe/driver-shape.txt || true
           exit 0
 
       - name: Gate a measurement (A = network then boot, B = boot then network)
