@@ -16,7 +16,7 @@
 set -u
 P="$1"; R="$HOME/cm-probe-raw"; mkdir -p "$R"
 . "$(dirname "$0")/cm-lim.sh"
-E=$(( $(date +%s) + 1915 ))
+E=$(( $(date +%s) + 1825 ))
 fact() { local v="${2:-}"; local e="$3"; local r
   if [ -z "$v" ]; then r=MISSING; elif [ "$e" = "-" ]; then r=RECORD; else case "$v" in *"$e"*) r=MATCH;; *) r=DIFF;; esac; fi
   echo "FACT $1 value=$v expect=$e verdict=$r"; }
