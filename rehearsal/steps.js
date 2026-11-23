@@ -1,6 +1,6 @@
 // Practice only. node rehearsal/steps.js <console file> <lines already printed>: prints the NEW step lines of one
 // Maestro console as "<n> <kind> <status>" only. The kind comes from a fixed list; arguments, texts on the screen and
-// typed values are never printed. A line that matches no kind is counted as "other" with no text.
+// typed values are never printed (an unknown line may add class=<error class name>, letters only). A line that matches no kind is counted as "other" with no text.
 const fs = require('fs');
 const [file, done0] = process.argv.slice(2);
 let s = ''; try { s = fs.readFileSync(file, 'utf8'); } catch (e) { process.exit(0); }
@@ -16,7 +16,9 @@ lines.forEach((l, i) => {
   const t = l.trim();
   const k = KINDS.find(([p]) => t.startsWith(p));
   const st = (t.match(/\.\.\. (COMPLETED|FAILED|SKIPPED|WARNED)$/) || [])[1] || (/\.\.\.$/.test(t) ? 'RUNNING' : '-');
-  out.push(`${i + 1} ${k ? k[1] : 'other'} ${st}`);
+  // for an unknown line, keep only a Java/Maestro error class name (letters only, never a value)
+  const ex = k ? '' : ((t.match(/\b([A-Z][A-Za-z]*(?:Exception|Error|Timeout|Failure|Unreachable))\b/) || [])[1] || '');
+  out.push(`${i + 1} ${k ? k[1] : 'other'} ${st}${ex ? ' class=' + ex : ''}`);
 });
 if (out.length) console.log(out.join('\n'));
 console.error(lines.length);

@@ -87,7 +87,7 @@ home() { # <tag>: trial-home after one Enter with the D3 shots beside it; record
   return "$r"
 }
 login_net_msg() { # 0 when a non-credential login failure is on screen (a1a.tsx:83 network, :84 general). The tree is searched, never saved.
-  local h; h=$(lim 60 maestro --device "$UDID" hierarchy 2>/dev/null) || return 1
+  local h; h=$(lim 200 maestro --device "$UDID" hierarchy 2>/dev/null) || return 1
   case "$h" in *"ログインできませんでした。通信環境をご確認ください"*|*"ログインできませんでした。もう一度お試しください"*) return 0;; *) return 1;; esac
 }
 flow_fail() { note "flow failed ($1)"; lim 115 bash .maestro/netcheck.sh "$NET" "after-fail" >/dev/null 2>&1 || true; exit 1; }
