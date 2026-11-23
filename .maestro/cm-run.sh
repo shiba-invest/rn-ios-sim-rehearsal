@@ -65,9 +65,14 @@ start_rec() { [ -z "$REC" ] || return 0
   xcrun simctl io "$UDID" recordVideo --codec h264 --force "$OUT/raw.mp4" >/dev/null 2>&1 &
   REC=$!; sleep 2; }
 
+memlog() { # practice only: free memory (free+inactive+speculative pages) to out/logs/mem.txt, numbers only
+  local p; p=$(sysctl -n hw.pagesize 2>/dev/null || echo 16384)
+  echo "$(date -u +%H:%M:%S) $1 free_mb=$(( $(vm_stat | awk '/Pages free|Pages inactive|Pages speculative/ {gsub(/[.]/,"",$NF); s+=$NF} END {print s+0}') * p / 1048576 ))" >> "$CM_ROOT/out/logs/mem.txt" 2>/dev/null || true; }
 mt() { # <name> <flow> [-e ...]: one maestro test, debug output outside out/; returns its rc
   local n="$1" f="$2"; shift 2; local r=0
+  memlog "before $n"
   lim "${MT_LIMIT:-300}" maestro --device "$UDID" test --test-output-dir "$RAW/m-$n" -e ORIENT="$O" "$@" ".maestro/$f" > "$RAW/m-$n.console" 2>&1 < /dev/null || r=$?
+  memlog "after $n rc=$r"
   note "flow $n rc=$r (142 = over the limit) at $(date -u +%H:%M:%S)"
   return "$r"
 }
@@ -87,6 +92,7 @@ home() { # <tag>: trial-home after one Enter with the D3 shots beside it; record
   return "$r"
 }
 login_net_msg() { # 0 when a non-credential login failure is on screen (a1a.tsx:83 network, :84 general). The tree is searched, never saved.
+  memlog "before hierarchy"
   local h; h=$(lim 200 maestro --device "$UDID" hierarchy 2>/dev/null) || return 1
   case "$h" in *"ログインできませんでした。通信環境をご確認ください"*|*"ログインできませんでした。もう一度お試しください"*) return 0;; *) return 1;; esac
 }
